@@ -81,7 +81,7 @@ class Configuration:
 
         #################### SWING ######################
         self.z_coeffs = None
-        self.z_clearance = 0.08
+        self.z_clearance = 0.16
         self.alpha = (
             0.5  # Ratio between touchdown distance and total horizontal stance movement
         )
@@ -97,10 +97,10 @@ class Configuration:
             [[1, 1, 1, 0], [1, 0, 1, 1], [1, 0, 1, 1], [1, 1, 1, 0]]
         )
         self.overlap_time = (
-            0.20  # duration of the phase where all four feet are on the ground
+            0.10  # duration of the phase where all four feet are on the ground
         )
         self.swing_time = (
-            0.12  # duration of the phase when only two feet are on the ground 
+            0.06  # duration of the phase when only two feet are on the ground 
         )
 
         ######################## GEOMETRY ######################
