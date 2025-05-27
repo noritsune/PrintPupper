@@ -76,6 +76,8 @@ def forPS4orUSBjoystick(ps4_usb, devpath):
             left_x = values["left_analog_x"]
             R1 = values["button_r1"]
             L1 = values["button_l1"]
+            R2 = values["button_r2"]
+            L2 = values["button_l2"]
             square = values["button_square"]
             x = values["button_cross"]
             circle = values["button_circle"]
@@ -116,6 +118,8 @@ def forPS4orUSBjoystick(ps4_usb, devpath):
                 "R1": R1,
                 "L1": L1,
                 "dpady": dpady,
+                "R2": R2,
+                "L2": L2,
                 "dpadx": dpadx,
                 "x": x,
                 "square": square,
@@ -173,5 +177,3 @@ if __name__ == '__main__':
         ps4_usb = True
 
     forPS4orUSBjoystick(ps4_usb, DEVJS0_PATH)
-
-

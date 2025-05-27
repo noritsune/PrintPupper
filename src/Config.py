@@ -76,6 +76,8 @@ class Configuration:
         self.delta_y = 0.09
         self.x_shift = 0.0
         self.default_z_ref = -0.15                          # needs State.py and Command.py same value
+        self.offset_limit_x = 0.2
+        self.offset_limit_y = 0.2
 
         #################### SWING ######################
         self.z_coeffs = None

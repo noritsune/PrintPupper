@@ -123,6 +123,7 @@ class JoystickInterface:
             self.previous_activate_toggle = activate_toggle
 
             ####### Handle continuous commands ########
+
             x_vel = msg_val_ly * self.config.max_x_velocity
             y_vel = msg_val_lx * -self.config.max_y_velocity
             command.horizontal_velocity = np.array([x_vel, y_vel])
@@ -157,6 +158,18 @@ class JoystickInterface:
 
             command.joy_ps4_usb = msg["ps4_usb"]
 
+            # 各足先の座標を独立に操作できるようにする
+            # [FRのxy, FLのxy, BRのxy, BLのxy]
+            leg_pos_offset = np.array([
+                msg_val_ly * self.config.offset_limit_x,
+                msg_val_lx * -self.config.offset_limit_y,
+                0
+            ])
+            if msg["R2"]:
+                command.leg_pos_offsets[2] = leg_pos_offset
+            if msg["L2"]:
+                command.leg_pos_offsets[3] = leg_pos_offset
+
             return command
 
         except:
@@ -181,6 +194,8 @@ class JoystickInterface:
                 "ry": 0,
                 "R1": False,
                 "L1": False,
+                "R2": False,
+                "L2": False,
                 "dpady": 0,
                 "dpadx": 0,
                 "x": False,
