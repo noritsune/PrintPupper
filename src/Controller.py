@@ -141,7 +141,7 @@ class Controller:
             state.foot_locations = (
                 self.config.default_stance
                 + np.array([0, 0, command.height])[:, np.newaxis]
-                + command.leg_pos_offsets.T
+                + command.leg_pos_offsets
             )
             
             # Apply the desired body rotation

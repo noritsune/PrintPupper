@@ -16,6 +16,7 @@ class JoystickInterface:
         self.previous_state = BehaviorState.REST
         self.previous_hop_toggle = 0
         self.previous_activate_toggle = 0
+        self.previous_square = False
 
         self.auto_trot = False
         self.auto_trot_sensitivity = 0.25
@@ -63,16 +64,17 @@ class JoystickInterface:
 
             ####### Handle discrete commands ########
             # for Auto trot added function
-            if msg["long_R1"]:
-                msg["long_R1"] = False
+            # previous_squareを見ているのは長押し時に反転を連続でするのを防ぐため
+            if msg["square"] and not self.previous_square:
                 self.auto_trot = not self.auto_trot
                 if self.auto_trot:
                     self.auto_trot_counter = self.auto_trot_timer
                     print('auto trot mode:On')
                 else:
                     print('auto trot mode:Off')
+            self.previous_square = msg["square"]
 
-            gait_toggle = msg["R1"]
+            gait_toggle = msg["x"]
             now_trot = (state.behavior_state == BehaviorState.TROT)
             input_move_on = False
             msg_val_lx = float(msg["lx"])
@@ -109,7 +111,7 @@ class JoystickInterface:
             # command.hop_event = (hop_toggle == 1 and self.previous_hop_toggle == 0) 
             hop_toggle = 0
             
-            activate_toggle = msg["L1"]
+            activate_toggle = msg["triangle"]
             command.activate_event = (activate_toggle == 1 and self.previous_activate_toggle == 0)
 
             if msg["long_x"]:
@@ -165,10 +167,10 @@ class JoystickInterface:
                 msg_val_lx * -self.config.offset_limit_y,
                 0
             ])
-            if msg["R2"]:
-                command.leg_pos_offsets[2] = leg_pos_offset
-            if msg["L2"]:
-                command.leg_pos_offsets[3] = leg_pos_offset
+            leg_buttons = [msg["R1"], msg["L1"], msg["R2"], msg["L2"]]
+            for i, pressed in enumerate(leg_buttons):
+                if pressed:
+                    command.leg_pos_offsets[:, i] = leg_pos_offset
 
             return command
 
