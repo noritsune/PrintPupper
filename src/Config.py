@@ -76,8 +76,8 @@ class Configuration:
         self.delta_y = 0.09
         self.x_shift = 0.0
         self.default_z_ref = -0.15                          # needs State.py and Command.py same value
-        self.offset_limit_x = 0.2
-        self.offset_limit_y = 0.2
+        self.offset_move_speed = 0.05
+        self.offset_limits = np.array([0.2, 0.2, 0.1])  # [x, y] limits for leg position offsets
 
         #################### SWING ######################
         self.z_coeffs = None

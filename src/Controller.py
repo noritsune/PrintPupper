@@ -161,6 +161,7 @@ class Controller:
         state.pitch = command.pitch
         state.roll = command.roll
         state.height = command.height
+        state.leg_pos_offsets = command.leg_pos_offsets
 
     def set_pose_to_default(self):
         state.foot_locations = (
