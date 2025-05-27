@@ -20,3 +20,4 @@ class Command:
         self.caliblate_mode_event = False
 
         self.leg_pos_offsets = np.zeros((3, 4))
+        self.is_legs_offset_mode = False

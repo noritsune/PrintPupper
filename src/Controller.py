@@ -145,17 +145,23 @@ class Controller:
             )
             
             # Apply the desired body rotation
-            rotated_foot_locations = (
-                euler2mat(
-                    command.roll,
-                    command.pitch,
-                    self.smoothed_yaw,
+            if command.is_legs_offset_mode:
+                # 足の位置を個別にずらすモード中は体を捻ったりするとおかしな姿勢になるので無視する
+                state.joint_angles = self.inverse_kinematics(
+                    state.foot_locations, self.config
                 )
-                @ state.foot_locations
-            )
-            state.joint_angles = self.inverse_kinematics(
-                rotated_foot_locations, self.config
-            )
+            else:
+                rotated_foot_locations = (
+                    euler2mat(
+                        command.roll,
+                        command.pitch,
+                        self.smoothed_yaw,
+                    )
+                    @ state.foot_locations
+                )
+                state.joint_angles = self.inverse_kinematics(
+                    rotated_foot_locations, self.config
+                )
 
         state.ticks += 1
         state.pitch = command.pitch

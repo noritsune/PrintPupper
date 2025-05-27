@@ -162,12 +162,13 @@ class JoystickInterface:
 
             # 各足先の座標を独立に操作できるようにする
             # [FRのxy, FLのxy, BRのxy, BLのxy]
-            leg_pos_offset = np.array([msg_val_ly, msg_val_lx, 0])
+            leg_pos_offset = np.array([msg_val_ly, msg_val_lx, msg_val_ry])
             leg_buttons = [msg["R1"], msg["L1"], msg["R2"], msg["L2"]]
             for i, pressed in enumerate(leg_buttons):
                 if pressed:
                     new_offsets = state.leg_pos_offsets[:, i] + message_dt * leg_pos_offset * self.config.offset_move_speed
                     command.leg_pos_offsets[:, i] = np.clip(new_offsets, -self.config.offset_limits, self.config.offset_limits)
+            command.is_legs_offset_mode = any(leg_buttons)
 
             return command
 
