@@ -57,10 +57,11 @@ class JoystickInterface:
             if do_print:
                print(msg)
 
-            if msg["long_square"]:
-                msg["long_square"] = False
-                self.rx_ry_switch = not self.rx_ry_switch
-                print('RX/RY reverse')
+            # 反転機能を使うことは無いのでコメントアウト
+            # if msg["long_square"]:
+            #     msg["long_square"] = False
+            #     self.rx_ry_switch = not self.rx_ry_switch
+            #     print('RX/RY reverse')
 
             ####### Handle discrete commands ########
             # for Auto trot added function
@@ -162,7 +163,8 @@ class JoystickInterface:
 
             # 各足先の座標を独立に操作できるようにする
             # [FRのxy, FLのxy, BRのxy, BLのxy]
-            leg_pos_offset = np.array([msg_val_ly, msg_val_lx, msg_val_ry])
+            command.leg_pos_offsets = state.leg_pos_offsets.copy()
+            leg_pos_offset = np.array([msg_val_ly, -msg_val_lx, msg_val_ry])
             leg_buttons = [msg["R1"], msg["L1"], msg["R2"], msg["L2"]]
             for i, pressed in enumerate(leg_buttons):
                 if pressed:

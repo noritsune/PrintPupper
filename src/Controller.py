@@ -81,6 +81,10 @@ class Controller:
             state.behavior_state = self.hop_transition_mapping[state.behavior_state]
 
         if state.behavior_state == BehaviorState.TROT:
+            # トロットモードに入ったら足の個別移動は不要なのでリセットする
+            state.leg_pos_offsets = np.zeros((3, 4))
+            command.leg_pos_offsets = np.zeros((3, 4))
+
             state.foot_locations, contact_modes = self.step_gait(
                 state,
                 command,
