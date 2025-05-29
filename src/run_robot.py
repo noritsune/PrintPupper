@@ -10,6 +10,8 @@ from Config import Configuration
 from Kinematics import four_legs_inverse_kinematics
 from State import BehaviorState, State
 from run_robot_caliblate_mode import run_robot_caliblate_mode
+import importlib
+import threading
 
 def main(use_imu=False):
     """Main program
@@ -18,6 +20,48 @@ def main(use_imu=False):
     # Create config
     config = Configuration()
     hardware_interface = HardwareInterface()
+    controller = Controller(
+        config,
+        four_legs_inverse_kinematics,
+    )
+    state = State()
+    print("Creating joystick listener...")
+    joystick_interface = JoystickInterface(config)
+    print("Done.")
+
+    # スレッドセーフなconfig/controller共有用
+    shared = {
+        'config': config,
+        'controller': controller
+    }
+    lock = threading.Lock()
+
+
+    is_debug_mode = '-debug' in sys.argv
+    print(f"{time.time()} [DEBUG] is_debug_mode: {is_debug_mode}")
+
+    if is_debug_mode:
+        def config_reload_worker():
+            while True:
+                time.sleep(1.0)
+                try:
+                    import Config
+                    importlib.reload(Config)
+                    new_config = Config.Configuration()
+                    new_controller = Controller(
+                        new_config,
+                        four_legs_inverse_kinematics,
+                    )
+                    with lock:
+                        shared['config'] = new_config
+                        shared['controller'] = new_controller
+                    joystick_interface.config = new_config
+                    print(f"{time.time()} [DEBUG] Config.py reloaded!")
+                except Exception as e:
+                    print(f"{time.time()} [DEBUG] Config.py reload failed: {e}")
+
+        reload_thread = threading.Thread(target=config_reload_worker, daemon=True)
+        reload_thread.start()
 
     # Create imu handle
     if use_imu:
@@ -33,8 +77,6 @@ def main(use_imu=False):
     print("Creating joystick listener...")
     joystick_interface = JoystickInterface(config)
     print("Done.")
-
-    last_loop_time = time.time()
 
     print("Summary of gait parameters:")
     print("overlap time: ", config.overlap_time)
@@ -75,6 +117,13 @@ def main(use_imu=False):
         joystick_interface.set_color(config.ps4_activated_color)
         while True:
             d_time = time.time()
+
+            # 最新のcontroller/configを参照
+            if is_debug_mode:
+                with lock:
+                    controller = shared['controller']
+                    config = shared['config']
+                joystick_interface.config = config
 
             # Parse the udp joystick commands and then update the robot controller's parameters
             command = joystick_interface.get_command(state)
