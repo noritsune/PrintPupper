@@ -135,6 +135,11 @@ class JoystickInterface:
             else:
                 command.yaw_rate = msg_val_rx * -self.config.max_yaw_rate
 
+            # トロット中にR1を押している間は高速移動モードとする
+            if (state.behavior_state == BehaviorState.TROT) and msg.get("R1", False):
+                command.horizontal_velocity *= 4
+                command.yaw_rate *= 4
+
             message_rate = msg["message_rate"]
             message_dt = 1.0 / message_rate
 
