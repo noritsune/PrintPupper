@@ -18,6 +18,8 @@ class State:
 
         self.behavior_state = BehaviorState.REST
 
+        self.imu_pitch = 0.0
+        self.imu_roll = 0.0
 
 class BehaviorState(Enum):
     DEACTIVATED = -1
