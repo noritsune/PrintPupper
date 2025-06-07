@@ -118,6 +118,17 @@ def main(use_imu=False):
         while True:
             d_time = time.time()
 
+            # FINISHHOPからRESTへ自動遷移
+            if state.behavior_state == BehaviorState.FINISHHOP:
+                if state.last_finishhop_time is None:
+                    state.last_finishhop_time = time.time()
+                elif time.time() - state.last_finishhop_time > config.hop_time:
+                    state.behavior_state = BehaviorState.REST
+                    state.last_finishhop_time = None
+            else:
+                if state.last_finishhop_time is not None:
+                    state.last_finishhop_time = None
+
             # 最新のcontroller/configを参照
             if is_debug_mode:
                 with lock:

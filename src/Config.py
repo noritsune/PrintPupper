@@ -103,6 +103,11 @@ class Configuration:
             0.06  # duration of the phase when only two feet are on the ground 
         )
 
+        #################### HOP ####################
+        self.hop_time = 0.15
+        self.hop_foot_location = np.array([0, 0.0, -0.09])
+        self.finish_hop_foot_location = np.array([-0.08, 0.0, -0.25])
+
         ######################## GEOMETRY ######################
         self.LEG_FB = 0.10  # front-back distance from center line to leg axis
         self.LEG_LR = 0.04  # left-right distance from center line to leg plane

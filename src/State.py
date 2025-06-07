@@ -18,6 +18,7 @@ class State:
         self.leg_pos_offsets = np.zeros((3, 4))
 
         self.behavior_state = BehaviorState.REST
+        self.last_finishhop_time = None
 
 
 class BehaviorState(Enum):

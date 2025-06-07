@@ -66,14 +66,14 @@ class JoystickInterface:
             ####### Handle discrete commands ########
             # for Auto trot added function
             # previous_squareを見ているのは長押し時に反転を連続でするのを防ぐため
-            if msg["square"] and not self.previous_square:
-                self.auto_trot = not self.auto_trot
-                if self.auto_trot:
-                    self.auto_trot_counter = self.auto_trot_timer
-                    print('auto trot mode:On')
-                else:
-                    print('auto trot mode:Off')
-            self.previous_square = msg["square"]
+            # if msg["square"] and not self.previous_square:
+            #     self.auto_trot = not self.auto_trot
+            #     if self.auto_trot:
+            #         self.auto_trot_counter = self.auto_trot_timer
+            #         print('auto trot mode:On')
+            #     else:
+            #         print('auto trot mode:Off')
+            # self.previous_square = msg["square"]
 
             gait_toggle = msg["x"]
             now_trot = (state.behavior_state == BehaviorState.TROT)
@@ -108,9 +108,8 @@ class JoystickInterface:
             command.trot_event = (gait_toggle == 1 and self.previous_gait_toggle == 0)
 
             # Check if requesting a state transition to hopping, from trotting or resting
-            # hop_toggle = msg["x"]
-            # command.hop_event = (hop_toggle == 1 and self.previous_hop_toggle == 0) 
-            hop_toggle = 0
+            hop_toggle = msg["square"]
+            command.hop_event = (hop_toggle ^ self.previous_hop_toggle)
             
             activate_toggle = msg["triangle"]
             command.activate_event = (activate_toggle == 1 and self.previous_activate_toggle == 0)
