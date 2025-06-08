@@ -13,7 +13,7 @@ import importlib
 import threading
 from mpu6050_kalman import Mpu6050Kalman
 
-def main(use_imu=False):
+def main(is_debug=False, use_imu=False):
     """Main program
     """
 
@@ -37,10 +37,8 @@ def main(use_imu=False):
     lock = threading.Lock()
 
 
-    is_debug_mode = '-debug' in sys.argv
-    print(f"{time.time()} [DEBUG] is_debug_mode: {is_debug_mode}")
 
-    if is_debug_mode:
+    if is_debug:
         def config_reload_worker():
             while True:
                 time.sleep(1.0)
@@ -129,7 +127,7 @@ def main(use_imu=False):
                     state.last_finishhop_time = None
 
             # 最新のcontroller/configを参照
-            if is_debug_mode:
+            if is_debug:
                 with lock:
                     controller = shared['controller']
                     config = shared['config']
@@ -180,6 +178,7 @@ def main(use_imu=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument('--debug', action='store_true', help='Enable debug mode')
     parser.add_argument('--use_imu', action='store_true', help='Use IMU (mpu6050)')
     args = parser.parse_args()
-    main(use_imu=args.use_imu)
+    main(is_debug=args.debug, use_imu=args.use_imu)
