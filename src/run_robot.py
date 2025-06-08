@@ -1,7 +1,6 @@
 import sys
-import numpy as np
 import time
-from IMU import IMU
+import argparse
 from Controller import Controller
 from JoystickInterface import JoystickInterface
 from State import State
@@ -12,6 +11,7 @@ from State import BehaviorState, State
 from run_robot_caliblate_mode import run_robot_caliblate_mode
 import importlib
 import threading
+from mpu6050_kalman import Mpu6050Kalman
 
 def main(use_imu=False):
     """Main program
@@ -65,8 +65,7 @@ def main(use_imu=False):
 
     # Create imu handle
     if use_imu:
-        imu = IMU(port="/dev/ttyACM0")
-        imu.flush_buffer()
+        mpu_kalman = Mpu6050Kalman(0x68)
 
     # Create controller and user input handles
     controller = Controller(
@@ -157,10 +156,12 @@ def main(use_imu=False):
                     #print("Robot stop torot")
 
             # Read imu data. Orientation will be None if no data was available
-            quat_orientation = (
-                imu.read_orientation() if use_imu else np.array([1, 0, 0, 0])
-            )
-            state.quat_orientation = quat_orientation
+            if use_imu:
+                # mpu6050から傾き取得
+                pitch, roll = mpu_kalman.get_pitch_roll()
+                print("PITCH(deg): %7.2f ROLL(deg): %7.2f" % (pitch, roll))
+                state.imu_pitch = pitch
+                state.imu_roll = roll
 
             # Step the controller forward by dt
             controller.run(state, command)
@@ -177,4 +178,8 @@ def main(use_imu=False):
                 time.sleep(dt_dt)
 
 
-main()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--use_imu', action='store_true', help='Use IMU (mpu6050)')
+    args = parser.parse_args()
+    main(use_imu=args.use_imu)

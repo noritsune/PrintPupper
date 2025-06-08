@@ -99,11 +99,10 @@ class Controller:
             )
 
             # Construct foot rotation matrix to compensate for body tilt
-            (roll, pitch, yaw) = quat2euler(state.quat_orientation)
             correction_factor = 0.8
             max_tilt = 0.4
-            roll_compensation = correction_factor * np.clip(roll, -max_tilt, max_tilt)
-            pitch_compensation = correction_factor * np.clip(pitch, -max_tilt, max_tilt)
+            roll_compensation = correction_factor * np.clip(state.imu_roll, -max_tilt, max_tilt)
+            pitch_compensation = correction_factor * np.clip(state.imu_pitch, -max_tilt, max_tilt)
             rmat = euler2mat(roll_compensation, pitch_compensation, 0)
 
             rotated_foot_locations = rmat.T @ rotated_foot_locations
