@@ -70,7 +70,6 @@ class Configuration:
         self.yaw_time_constant = 0.5
         self.max_stance_yaw = 0.6
         self.max_stance_yaw_rate = 1.0
-        self.max_roll = 0.5
 
         #################### STANCE ####################
         self.delta_x = 0.1
@@ -79,6 +78,9 @@ class Configuration:
         self.default_z_ref = -0.15                          # needs State.py and Command.py same value
         self.offset_move_speed = 0.05
         self.offset_limits = np.array([0.2, 0.2, 0.1])  # [x, y] limits for leg position offsets
+        self.min_height = -0.205
+        self.max_height = -0.10
+        self.max_roll = 0.5
 
         #################### SWING ######################
         self.z_coeffs = None
