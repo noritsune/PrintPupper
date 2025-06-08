@@ -161,7 +161,6 @@ class JoystickInterface:
             new_height = state.height - message_dt * self.config.z_speed * height_movement
             # 高さの上限・下限を適用
             command.height = np.clip(new_height, self.config.min_height, self.config.max_height)
-            print(new_height)
             
             roll_movement = - msg["dpadx"]
             new_roll = state.roll + message_dt * self.config.roll_speed * roll_movement
