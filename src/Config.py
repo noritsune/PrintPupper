@@ -70,6 +70,7 @@ class Configuration:
         self.yaw_time_constant = 0.5
         self.max_stance_yaw = 0.6
         self.max_stance_yaw_rate = 1.0
+        self.max_roll = 0.5
 
         #################### STANCE ####################
         self.delta_x = 0.1

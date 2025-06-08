@@ -161,7 +161,9 @@ class JoystickInterface:
             command.height = state.height - message_dt * self.config.z_speed * height_movement
             
             roll_movement = - msg["dpadx"]
-            command.roll = state.roll + message_dt * self.config.roll_speed * roll_movement
+            new_roll = state.roll + message_dt * self.config.roll_speed * roll_movement
+            # 左右ボタンを無駄に押して無理な姿勢になることを防ぐ
+            command.roll = np.clip(new_roll, -self.config.max_roll, self.config.max_roll)
 
             command.joy_ps4_usb = msg["ps4_usb"]
 
