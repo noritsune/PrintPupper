@@ -1,6 +1,8 @@
 import sys
 import time
 import argparse
+
+import numpy as np
 from Controller import Controller
 from JoystickInterface import JoystickInterface
 from State import State
@@ -157,7 +159,7 @@ def main(is_debug=False, use_imu=False):
             if use_imu:
                 # mpu6050から傾き取得
                 pitch, roll = mpu_kalman.get_pitch_roll()
-                print("PITCH(deg): %7.2f ROLL(deg): %7.2f" % (pitch, roll))
+                print("PITCH(deg): %7.2f ROLL(deg): %7.2f" % (pitch * 180 / np.pi, roll * 180 / np.pi))
                 state.imu_pitch = pitch
                 state.imu_roll = roll
 

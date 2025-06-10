@@ -62,5 +62,4 @@ class Mpu6050Kalman:
         gyro_roll = gyro_data['y'] * np.pi / 180.0
         self.kalman_pitch, self.bias_pitch, self.P_pitch = self.kalman_filter(acc_pitch, gyro_pitch, dt, self.kalman_pitch, self.bias_pitch, self.P_pitch)
         self.kalman_roll, self.bias_roll, self.P_roll = self.kalman_filter(acc_roll, gyro_roll, dt, self.kalman_roll, self.bias_roll, self.P_roll)
-        # 角度はdegで返す
-        return self.kalman_pitch * 180 / np.pi, self.kalman_roll * 180 / np.pi
+        return self.kalman_pitch, self.kalman_roll

@@ -72,19 +72,19 @@ class Configuration:
         self.max_stance_yaw_rate = 1.0
 
         #################### STANCE ####################
-        self.delta_x = 0.1
+        self.delta_x = 0.10
         self.delta_y = 0.09
         self.x_shift = 0.0
         self.default_z_ref = -0.15                          # needs State.py and Command.py same value
         self.offset_move_speed = 0.05
-        self.offset_limits = np.array([0.2, 0.2, 0.1])  # [x, y] limits for leg position offsets
+        self.offset_limits = np.array([0.2, 0.2, 0.1])  # [x, y, z] limits for leg position offsets
         self.min_height = -0.205
         self.max_height = -0.10
         self.max_roll = 0.5
 
         #################### SWING ######################
         self.z_coeffs = None
-        self.z_clearance = 0.16
+        self.z_clearance = 0.08
         self.alpha = (
             0.5  # Ratio between touchdown distance and total horizontal stance movement
         )
@@ -99,11 +99,12 @@ class Configuration:
         self.contact_phases = np.array(
             [[1, 1, 1, 0], [1, 0, 1, 1], [1, 0, 1, 1], [1, 1, 1, 0]]
         )
+        self.step_speed = 2
         self.overlap_time = (
-            0.10  # duration of the phase where all four feet are on the ground
+            0.20 / self.step_speed  # duration of the phase where all four feet are on the ground
         )
         self.swing_time = (
-            0.06  # duration of the phase when only two feet are on the ground 
+            0.16 / self.step_speed # duration of the phase when only two feet are on the ground 
         )
 
         #################### HOP ####################

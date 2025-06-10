@@ -100,7 +100,7 @@ class Controller:
 
             # Construct foot rotation matrix to compensate for body tilt
             correction_factor = 0.8
-            max_tilt = 0.4
+            max_tilt = np.pi / 4
             roll_compensation = correction_factor * np.clip(state.imu_roll, -max_tilt, max_tilt)
             pitch_compensation = correction_factor * np.clip(state.imu_pitch, -max_tilt, max_tilt)
             rmat = euler2mat(roll_compensation, pitch_compensation, 0)
@@ -162,6 +162,16 @@ class Controller:
                     )
                     @ state.foot_locations
                 )
+
+                # Construct foot rotation matrix to compensate for body tilt
+                correction_factor = 0.8
+                max_tilt = np.pi / 4
+                roll_compensation = correction_factor * np.clip(state.imu_roll, -max_tilt, max_tilt)
+                pitch_compensation = correction_factor * np.clip(state.imu_pitch, -max_tilt, max_tilt)
+                rmat = euler2mat(roll_compensation, pitch_compensation, 0)
+
+                rotated_foot_locations = rmat.T @ rotated_foot_locations
+
                 state.joint_angles = self.inverse_kinematics(
                     rotated_foot_locations, self.config
                 )
@@ -172,11 +182,11 @@ class Controller:
         state.height = command.height
         state.leg_pos_offsets = command.leg_pos_offsets
 
-    def set_pose_to_default(self):
+    def set_pose_to_default(self, state):
         state.foot_locations = (
             self.config.default_stance
             + np.array([0, 0, self.config.default_z_ref])[:, np.newaxis]
         )
-        state.joint_angles = controller.inverse_kinematics(
+        state.joint_angles = self.inverse_kinematics(
             state.foot_locations, self.config
         )
