@@ -16,6 +16,9 @@ class PWMParams:
         self.pins = np.array([[ 23, 17, 16,  5], \
                               [ 24, 27, 20,  6], \
                               [ 25, 22, 21, 19]])
+        # サーボ名: 土台, 肩(左), 肩(右), 肘, 手首(Pitch), 手首(Roll), 指
+        # 物理ピン番号:   7, 12, 24, 26, 32, 33, 37
+        self.arm_pins = [4, 18,  8,  7, 12, 13, 19]
 
 class ServoParams:
     def __init__(self):
