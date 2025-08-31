@@ -56,15 +56,10 @@ class JoystickInterface:
             if do_print:
                print(msg)
 
-            if msg["long_square"]:
-                msg["long_square"] = False
-                self.rx_ry_switch = not self.rx_ry_switch
-                print('RX/RY reverse')
-
             ####### Handle discrete commands ########
             # for Auto trot added function
-            if msg["long_R1"]:
-                msg["long_R1"] = False
+            if msg["long_x"]:
+                msg["long_x"] = False
                 self.auto_trot = not self.auto_trot
                 if self.auto_trot:
                     self.auto_trot_counter = self.auto_trot_timer
@@ -72,7 +67,7 @@ class JoystickInterface:
                 else:
                     print('auto trot mode:Off')
 
-            gait_toggle = msg["R1"]
+                gait_toggle = msg["x"]
             now_trot = (state.behavior_state == BehaviorState.TROT)
             input_move_on = False
             msg_val_lx = float(msg["lx"])
@@ -108,8 +103,8 @@ class JoystickInterface:
             # hop_toggle = msg["x"]
             # command.hop_event = (hop_toggle == 1 and self.previous_hop_toggle == 0) 
             hop_toggle = 0
-            
-            activate_toggle = msg["L1"]
+
+            activate_toggle = msg["triangle"]
             command.activate_event = (activate_toggle == 1 and self.previous_activate_toggle == 0)
             if command.activate_event:
                 print("command.height reset.")
