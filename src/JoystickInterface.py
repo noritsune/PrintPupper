@@ -167,7 +167,8 @@ class JoystickInterface:
                 arm_delta_values[2] = -msg_val_ly if abs(msg_val_ly) > abs(msg_val_lx) else 0
                 arm_delta_values[3] = int(msg["L2"]) - int(msg["L1"])
                 arm_delta_values[4] = msg_val_lx if abs(msg_val_lx) > abs(msg_val_ly) else 0
-                arm_delta_values[5] = 1 if msg["R2"] else -1
+                # 指のサーボは動きが速いほうが便利
+                arm_delta_values[5] = 3 if msg["R2"] else -3
 
             # 受け取った入力を元にアームの角度を更新
             command.arm_angles = np.clip(
