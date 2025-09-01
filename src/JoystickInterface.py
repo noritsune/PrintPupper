@@ -170,6 +170,10 @@ class JoystickInterface:
                 # 指のサーボは動きが速いほうが便利
                 arm_delta_values[5] = 3 if msg["R2"] else -3
 
+            # R1を押している間は高速モードでアームを動かせる
+            if (msg["R1"]):
+                arm_delta_values *= self.config.arm_dash_speed_factor
+
             # 受け取った入力を元にアームの角度を更新
             command.arm_angles = np.clip(
                 state.arm_angles + arm_delta_values * self.config.arm_speed * message_dt,
