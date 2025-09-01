@@ -19,7 +19,7 @@ class State:
 
         self.behavior_state = BehaviorState.REST
 
-        self.arm_angles = np.zeros(6)
+        self.arm_angles = _config.default_arm_angles.copy()
 
 
 class BehaviorState(Enum):
