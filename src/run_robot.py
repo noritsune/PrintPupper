@@ -103,6 +103,9 @@ def main(use_imu=False):
             # Update the pwm widths going to the servos
             hardware_interface.set_actuator_positions(state.joint_angles)
 
+            # 腕も動かす
+            hardware_interface.set_arm_joint_angles(state.arm_angles)
+
             # cycle tune
             t_time = time.time()
             dt = (float)(t_time - d_time)

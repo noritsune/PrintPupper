@@ -22,7 +22,6 @@ class JoystickInterface:
         self.auto_trot_timer = 75
         self.auto_trot_counter = 0
 
-        self.rx_ry_switch = False
         self.last_msg = self.get_null_joymsg()
 
         self.JOYSOCK_HOST = 'localhost'
@@ -54,7 +53,7 @@ class JoystickInterface:
                 msg = self.last_msg
 
             if do_print:
-               print(msg)
+                print(msg)
 
             ####### Handle discrete commands ########
             # for Auto trot added function
@@ -67,7 +66,7 @@ class JoystickInterface:
                 else:
                     print('auto trot mode:Off')
 
-                gait_toggle = msg["x"]
+            gait_toggle = msg["x"]
             now_trot = (state.behavior_state == BehaviorState.TROT)
             input_move_on = False
             msg_val_lx = float(msg["lx"])
@@ -78,12 +77,8 @@ class JoystickInterface:
                 input_move_on = True
             if(abs(msg_val_ly) >= self.auto_trot_sensitivity):
                 input_move_on = True
-            if self.rx_ry_switch:
-                if(abs(msg_val_ry) >= self.auto_trot_sensitivity):
-                    input_move_on = True
-            else:
-                if(abs(msg_val_rx) >= self.auto_trot_sensitivity):
-                    input_move_on = True
+            if(abs(msg_val_rx) >= self.auto_trot_sensitivity):
+                input_move_on = True
             if input_move_on:
                 self.auto_trot_counter = self.auto_trot_timer
             elif self.auto_trot_counter > 0:
@@ -127,10 +122,7 @@ class JoystickInterface:
                 x_vel = msg_val_ly * self.config.max_x_velocity
             y_vel = msg_val_lx * -self.config.max_y_velocity
             command.horizontal_velocity = np.array([x_vel, y_vel])
-            if self.rx_ry_switch:
-                command.yaw_rate = (msg_val_ry * -1) * -self.config.max_yaw_rate
-            else:
-                command.yaw_rate = msg_val_rx * -self.config.max_yaw_rate
+            command.yaw_rate = msg_val_rx * -self.config.max_yaw_rate
 
             message_rate = msg["message_rate"]
             message_dt = 1.0 / message_rate
@@ -147,10 +139,7 @@ class JoystickInterface:
                 max_pitch_ = self.config.max_pitch_as_trot
             else:
                 max_pitch_ = self.config.max_pitch
-            if self.rx_ry_switch:
-                pitch =  (msg_val_rx + self.config.pitch_gain) * max_pitch_
-            else:
-                pitch = ((msg_val_ry + self.config.pitch_gain) * -1) * max_pitch_
+            pitch = ((msg_val_ry + self.config.pitch_gain) * -1) * max_pitch_
             deadbanded_pitch = deadband(
                 pitch, self.config.pitch_deadband
             )
@@ -167,6 +156,32 @@ class JoystickInterface:
             # command.roll = state.roll + message_dt * self.config.roll_speed * roll_movement
 
             command.joy_ps4_usb = msg["ps4_usb"]
+
+            # RESTモード中はアームを制御できる
+            # まずは入力をもらう
+            arm_delta_values = np.zeros(6)
+            if state.behavior_state == BehaviorState.REST:
+                # 左右スティックの縦横それぞれ大きい方だけを採用
+                arm_delta_values[0] = msg_val_rx if abs(msg_val_rx) > abs(msg_val_ry) else 0
+                arm_delta_values[1] = -msg_val_ry if abs(msg_val_ry) > abs(msg_val_rx) else 0
+                arm_delta_values[2] = -msg_val_ly if abs(msg_val_ly) > abs(msg_val_lx) else 0
+                arm_delta_values[3] = int(msg["L2"]) - int(msg["L1"])
+                arm_delta_values[4] = msg_val_lx if abs(msg_val_lx) > abs(msg_val_ly) else 0
+                arm_delta_values[5] = 1 if msg["R2"] else -1
+
+            # 受け取った入力を元にアームの角度を更新
+            command.arm_angles = np.clip(
+                state.arm_angles + arm_delta_values * self.config.arm_speed * message_dt,
+                -np.pi / 2,
+                np.pi / 2
+            )
+
+            # 指のサーボは可動域が狭い
+            command.arm_angles[5] = np.clip(
+                state.arm_angles[5] + arm_delta_values[5] * self.config.arm_speed * message_dt,
+                -np.pi / 4,
+                np.pi / 4
+            )
 
             return command
 
@@ -191,7 +206,9 @@ class JoystickInterface:
                 "rx": 0,
                 "ry": 0,
                 "R1": False,
+                "R2": False,
                 "L1": False,
+                "L2": False,
                 "dpady": 0,
                 "dpadx": 0,
                 "x": False,

@@ -142,23 +142,24 @@ class Controller:
                 self.config.default_stance
                 + np.array([0, 0, command.height])[:, np.newaxis]
             )
-            # Apply the desired body rotation
-            rotated_foot_locations = (
-                euler2mat(
-                    command.roll,
-                    command.pitch,
-                    self.smoothed_yaw,
-                )
-                @ state.foot_locations
-            )
+            # アームを動かすために右スティックを使うので、REST中のクネクネ運動は無効化
+            # rotated_foot_locations = (
+            #     euler2mat(
+            #         command.roll,
+            #         command.pitch,
+            #         self.smoothed_yaw,
+            #     )
+            #     @ state.foot_locations
+            # )
             state.joint_angles = self.inverse_kinematics(
-                rotated_foot_locations, self.config
+                state.foot_locations, self.config
             )
 
         state.ticks += 1
         state.pitch = command.pitch
         state.roll = command.roll
         state.height = command.height
+        state.arm_angles = command.arm_angles
 
     def set_pose_to_default(self):
         state.foot_locations = (

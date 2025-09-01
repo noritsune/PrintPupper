@@ -19,6 +19,8 @@ class State:
 
         self.behavior_state = BehaviorState.REST
 
+        self.arm_angles = np.zeros(6)
+
 
 class BehaviorState(Enum):
     DEACTIVATED = -1

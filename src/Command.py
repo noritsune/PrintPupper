@@ -19,3 +19,5 @@ class Command:
         self.trot_event = False
         self.activate_event = False
         self.caliblate_mode_event = False
+
+        self.arm_angles = np.zeros(6)

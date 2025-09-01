@@ -71,6 +71,15 @@ class HardwareInterface:
                 self.pigpio.set_PWM_range(self.pwm_params.pins[axis_index, leg_index], self.servo_params.pwm_usec_range)
                 print('{:02d}'.format(self.pwm_params.pins[axis_index, leg_index]), 'pin ', sep='', end='')
             print(']')
+
+        # Initialize arm PWM channels
+        print('GPIO ARM-[ ', end='')
+        for pin in self.pwm_params.arm_pins:
+            self.pigpio.set_PWM_frequency(pin, self.servo_params.pwm_freq)
+            self.pigpio.set_PWM_range(pin, self.servo_params.pwm_usec_range)
+            print(f"{pin:02d}pin ", end='')
+        print(']')
+        
         return
 
     def deactivate_servos(self):
@@ -161,3 +170,24 @@ class HardwareInterface:
             # 再計算結果 knee 角度を指示行列に戻す
             joint_angles[2, leg_index] = kneeX * self.servo_params.servo_multipliers[2, leg_index]
         return
+    
+    # arm_angles: アームの各関節角度リスト 土台, 肩, 肘, 手首(Pitch), 手首(Roll), 指
+    # アームのサーボに反映する
+    def set_arm_joint_angles(self, arm_angles):
+        # サーボの数は関節の数に加えて肩(右)の分だけ1つ多い
+        # npの配列をコピーする
+        servo_angles = arm_angles.copy()
+        servo_angles = np.append(servo_angles, -arm_angles[1])
+
+        print("各関節の角度(度): ", [round(math.degrees(a)) for a in arm_angles])
+        for i, servo_angle in enumerate(servo_angles):
+            self.pigpio.set_PWM_dutycycle(
+                self.pwm_params.arm_pins[i],
+                self.angle_to_arm_pwmdutycycle(servo_angle)
+            )
+        return
+    
+    def angle_to_arm_pwmdutycycle(self, angle):
+        usec_val = self.servo_params.pwm_usec_neutral + (self.servo_params.pwm_usec_per_rad * angle)
+        usec_val_limited = max(self.servo_params.pwm_usec_min, min(usec_val, self.servo_params.pwm_usec_max))
+        return int(usec_val_limited)
