@@ -188,6 +188,10 @@ class JoystickInterface:
                 np.pi / 4
             )
 
+            # L1/L2で足の前後位置をずらす
+            command.foot_shift_x = state.foot_shift_x + (int(msg["L2"]) - int(msg["L1"])) * self.config.foot_shift_step
+            print('foot_shift_x:', command.foot_shift_x)
+
             return command
 
         except:

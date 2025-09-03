@@ -21,3 +21,5 @@ class Command:
         self.caliblate_mode_event = False
 
         self.arm_angles = np.zeros(6)
+        # L1/L2で足の前後位置をずらす用（前後方向）
+        self.foot_shift_x = 0.0

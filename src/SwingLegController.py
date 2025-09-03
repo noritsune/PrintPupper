@@ -22,7 +22,7 @@ class SwingController:
             * command.yaw_rate
         )
         R = euler2mat(0, 0, theta)
-        return R @ self.config.default_stance[:, leg_index] + delta_p
+        return R @ self.config.default_stance[:, leg_index] + delta_p + np.array([command.foot_shift_x, 0, 0])
 
 
     def swing_height(self, swing_phase, triangular=True):

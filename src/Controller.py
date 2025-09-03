@@ -142,6 +142,10 @@ class Controller:
                 self.config.default_stance
                 + np.array([0, 0, command.height])[:, np.newaxis]
             )
+
+            # L1/L2で足の前後位置をずらす（前後方向）
+            state.foot_locations[0, :] += command.foot_shift_x
+
             # アームを動かすために右スティックを使うので、REST中のクネクネ運動は無効化
             # rotated_foot_locations = (
             #     euler2mat(
@@ -160,6 +164,7 @@ class Controller:
         state.roll = command.roll
         state.height = command.height
         state.arm_angles = command.arm_angles
+        state.foot_shift_x = command.foot_shift_x
 
     def set_pose_to_default(self):
         state.foot_locations = (

@@ -78,6 +78,8 @@ class Configuration:
         self.min_z_ref = self.default_z_ref
         self.max_z_ref = self.default_z_ref + 0.050
         self.z_delta_as_down_speed = 0.020
+        # L1/L2で足の前後位置をずらすステップ値（m）
+        self.foot_shift_step = 0.001
         self.z_delta_as_down_speed_rate = 0.4
 
         #################### COMMANDS ####################

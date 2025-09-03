@@ -179,7 +179,6 @@ class HardwareInterface:
         servo_angles = arm_angles.copy()
         servo_angles = np.append(servo_angles, -arm_angles[1])
 
-        print("各関節の角度(度): ", [round(math.degrees(a)) for a in arm_angles])
         for i, servo_angle in enumerate(servo_angles):
             self.pigpio.set_PWM_dutycycle(
                 self.pwm_params.arm_pins[i],
