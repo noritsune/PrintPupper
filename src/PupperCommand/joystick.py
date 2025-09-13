@@ -64,10 +64,8 @@ def forPS4orUSBjoystick(ps4_usb, devpath):
             try:
                 values = joystick.joy.get_input()
             except:
-                # print('joy > get err')
                 joystick.joy.close()
                 joydev_connect = False
-                # print('joy > dev off')
                 continue
 
             left_y = -values["left_analog_y"]
@@ -78,16 +76,18 @@ def forPS4orUSBjoystick(ps4_usb, devpath):
             L1 = values["button_l1"]
             R2 = values["button_r2"]
             L2 = values["button_l2"]
+            R3 = values["button_r3"]
+            L3 = values["button_l3"]
             square = values["button_square"]
             x = values["button_cross"]
             circle = values["button_circle"]
             triangle = values["button_triangle"]
             dpadx = values["dpad_right"] - values["dpad_left"]
             dpady = values["dpad_up"] - values["dpad_down"]
-            left_x = round(left_x, 2);
-            left_y = round(left_y, 2);
-            right_x = round(right_x, 2);
-            right_y = round(right_y, 2);
+            left_x = round(left_x, 2)
+            left_y = round(left_y, 2)
+            right_x = round(right_x, 2)
+            right_y = round(right_y, 2)
 
             if square:
                 long_square_time += 1
@@ -119,6 +119,8 @@ def forPS4orUSBjoystick(ps4_usb, devpath):
                 "L1": L1,
                 "R2": R2,
                 "L2": L2,
+                "R3": R3,
+                "L3": L3,
                 "dpady": dpady,
                 "dpadx": dpadx,
                 "x": x,

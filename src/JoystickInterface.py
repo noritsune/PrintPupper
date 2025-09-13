@@ -188,9 +188,8 @@ class JoystickInterface:
                 np.pi / 4
             )
 
-            # L1/L2で足の前後位置をずらす
-            command.foot_shift_x = state.foot_shift_x + (int(msg["L2"]) - int(msg["L1"])) * self.config.foot_shift_step
-            print('foot_shift_x:', command.foot_shift_x)
+            # ボタン入力で足の前後位置をずらす
+            command.foot_shift_x = state.foot_shift_x + (int(msg["L3"]) - int(msg["R3"])) * self.config.foot_shift_step
 
             return command
 
@@ -210,29 +209,31 @@ class JoystickInterface:
 
     def get_null_joymsg(self):
         null_joymsg = {
-                "ly": 0,
-                "lx": 0,
-                "rx": 0,
-                "ry": 0,
-                "R1": False,
-                "R2": False,
-                "L1": False,
-                "L2": False,
-                "dpady": 0,
-                "dpadx": 0,
-                "x": False,
-                "square": False,
-                "circle": False,
-                "triangle": False,
-                "long_square": False,
-                "long_x": False,
-                "long_circle": False,
-                "long_triangle": False,
-                "long_R1": False,
-                "message_rate": 25,
-                "ps4_usb" : True,
-            }
-        return(null_joymsg)
+            "ly": 0,
+            "lx": 0,
+            "rx": 0,
+            "ry": 0,
+            "R1": False,
+            "R2": False,
+            "L1": False,
+            "L2": False,
+            "R3": False,
+            "L3": False,
+            "dpady": 0,
+            "dpadx": 0,
+            "x": False,
+            "square": False,
+            "circle": False,
+            "triangle": False,
+            "long_square": False,
+            "long_x": False,
+            "long_circle": False,
+            "long_triangle": False,
+            "long_R1": False,
+            "message_rate": 25,
+            "ps4_usb" : True,
+        }
+        return null_joymsg
 
     def get_last_msg(self):
         return self.last_msg
