@@ -57,14 +57,14 @@ class JoystickInterface:
 
             ####### Handle discrete commands ########
             # for Auto trot added function
-            if msg["long_x"]:
-                msg["long_x"] = False
-                self.auto_trot = not self.auto_trot
-                if self.auto_trot:
-                    self.auto_trot_counter = self.auto_trot_timer
-                    print('auto trot mode:On')
-                else:
-                    print('auto trot mode:Off')
+            # if msg["long_x"]:
+            #     msg["long_x"] = False
+            #     self.auto_trot = not self.auto_trot
+            #     if self.auto_trot:
+            #         self.auto_trot_counter = self.auto_trot_timer
+            #         print('auto trot mode:On')
+            #     else:
+            #         print('auto trot mode:Off')
 
             gait_toggle = msg["x"]
             now_trot = (state.behavior_state == BehaviorState.TROT)
