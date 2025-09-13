@@ -190,6 +190,7 @@ class JoystickInterface:
 
             # ボタン入力で足の前後位置をずらす
             command.foot_shift_x = state.foot_shift_x + (int(msg["L3"]) - int(msg["R3"])) * self.config.foot_shift_step
+            print('foot_shift_x:', np.round(command.foot_shift_x, 3), 'm')
 
             return command
 

@@ -179,7 +179,7 @@ class HardwareInterface:
         servo_angles = arm_angles.copy()
         servo_angles = np.append(servo_angles, -arm_angles[1])
 
-        print('arm servo angles (deg):', np.round(np.degrees(servo_angles), 3))
+        # print('arm servo angles (deg):', np.round(np.degrees(servo_angles), 3))
 
         for i, servo_angle in enumerate(servo_angles):
             self.pigpio.set_PWM_dutycycle(

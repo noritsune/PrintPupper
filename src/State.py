@@ -21,7 +21,7 @@ class State:
 
         self.arm_angles = _config.default_arm_angles.copy()
 
-        self.foot_shift_x = 0.016
+        self.foot_shift_x = 0.028
 
 class BehaviorState(Enum):
     DEACTIVATED = -1
