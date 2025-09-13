@@ -146,7 +146,7 @@ class Configuration:
         #################### ARM #######################
         self.arm_speed = np.pi / 2 * 0.1  # maximum arm speed [rad/s]
         self.arm_dash_speed_factor = 5 # 高速モード時に何倍の速度になるか
-        self.default_arm_angles = np.array([0, np.pi / 2, np.pi / 2, 0, -np.pi / 6, -np.pi / 4])
+        self.default_arm_angles = np.array([0, np.pi / 2, np.pi / 2, 0, -np.pi / 6, 0])
 
     @property
     def default_stance(self):

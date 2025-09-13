@@ -184,8 +184,8 @@ class JoystickInterface:
             # 指のサーボは可動域が狭い
             command.arm_angles[5] = np.clip(
                 state.arm_angles[5] + arm_delta_values[5] * self.config.arm_speed * message_dt,
-                -np.pi / 4,
-                np.pi / 4
+                0,
+                np.pi / 2
             )
 
             # ボタン入力で足の前後位置をずらす
