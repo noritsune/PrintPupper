@@ -116,13 +116,19 @@ class JoystickInterface:
             self.previous_activate_toggle = activate_toggle
 
             ####### Handle continuous commands ########
-            if msg_val_ly < 0:
-                x_vel = msg_val_ly * self.config.max_x_velocity_minus
+            # R1押下時は速度・旋回も速くする（アームとは別倍率）
+            if msg["R1"]:
+                speed_factor = self.config.speed_dash_factor
             else:
-                x_vel = msg_val_ly * self.config.max_x_velocity
-            y_vel = msg_val_lx * -self.config.max_y_velocity
+                speed_factor = 1.0
+
+            if msg_val_ly < 0:
+                x_vel = msg_val_ly * self.config.max_x_velocity_minus * speed_factor
+            else:
+                x_vel = msg_val_ly * self.config.max_x_velocity * speed_factor
+            y_vel = msg_val_lx * -self.config.max_y_velocity * speed_factor
             command.horizontal_velocity = np.array([x_vel, y_vel])
-            command.yaw_rate = msg_val_rx * -self.config.max_yaw_rate
+            command.yaw_rate = msg_val_rx * -self.config.max_yaw_rate * speed_factor
 
             message_rate = msg["message_rate"]
             message_dt = 1.0 / message_rate

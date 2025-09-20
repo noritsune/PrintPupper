@@ -86,6 +86,7 @@ class Configuration:
         self.max_x_velocity = 0.30
         self.max_x_velocity_minus = 0.12
         self.max_y_velocity = 0.12
+        self.speed_dash_factor = 2.0   # 速度・旋回の高速モード倍
         self.max_yaw_rate = 1.0
         self.max_pitch = 25 * np.pi / 180.0
         self.max_pitch_as_trot = 7 * np.pi / 180.0
@@ -145,7 +146,7 @@ class Configuration:
 
         #################### ARM #######################
         self.arm_speed = np.pi / 2 * 0.1  # maximum arm speed [rad/s]
-        self.arm_dash_speed_factor = 5 # 高速モード時に何倍の速度になるか
+        self.arm_dash_speed_factor = 5 # アーム高速モード倍率
         self.default_arm_angles = np.array([0, np.pi / 2, np.pi / 2, 0, -np.pi / 6, 0])
 
     @property
