@@ -104,7 +104,7 @@ def main(use_imu=False):
             hardware_interface.set_actuator_positions(state.joint_angles)
 
             # 腕も動かす
-            hardware_interface.set_arm_joint_angles(state.arm_angles)
+            hardware_interface.set_arm_joint_angles(state.arm_angles_deg)
 
             # cycle tune
             t_time = time.time()

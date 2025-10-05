@@ -19,9 +19,9 @@ class State:
 
         self.behavior_state = BehaviorState.REST
 
-        self.arm_angles = _config.default_arm_angles.copy()
+        self.arm_angles_deg = _config.default_arm_angles_deg.copy()
 
-        self.foot_shift_x = 0.028
+        self.foot_shift_x = 0.035
 
 class BehaviorState(Enum):
     DEACTIVATED = -1

@@ -163,7 +163,7 @@ class Controller:
         state.pitch = command.pitch
         state.roll = command.roll
         state.height = command.height
-        state.arm_angles = command.arm_angles
+        state.arm_angles_deg = command.arm_angles_deg
         state.foot_shift_x = command.foot_shift_x
 
     def set_pose_to_default(self):

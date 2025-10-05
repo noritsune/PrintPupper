@@ -171,17 +171,17 @@ class HardwareInterface:
             joint_angles[2, leg_index] = kneeX * self.servo_params.servo_multipliers[2, leg_index]
         return
     
-    # arm_angles: アームの各関節角度リスト 土台, 肩, 肘, 手首(Pitch), 手首(Roll), 指
+    # arm_angles_deg: アームの各関節角度リスト 土台, 肩, 肘, 手首(Pitch), 手首(Roll), 指
     # アームのサーボに反映する
-    def set_arm_joint_angles(self, arm_angles):
+    def set_arm_joint_angles(self, arm_angles_deg):
         # サーボの数は関節の数に加えて肩(右)の分だけ1つ多い
         # npの配列をコピーする
-        servo_angles = arm_angles.copy()
-        servo_angles = np.append(servo_angles, -arm_angles[1])
+        servo_angles_rad = np.radians(arm_angles_deg.copy())
+        servo_angles_rad = np.append(servo_angles_rad, -servo_angles_rad[1])
 
         # print('arm servo angles (deg):', np.round(np.degrees(servo_angles), 3))
 
-        for i, servo_angle in enumerate(servo_angles):
+        for i, servo_angle in enumerate(servo_angles_rad):
             self.pigpio.set_PWM_dutycycle(
                 self.pwm_params.arm_pins[i],
                 self.angle_to_arm_pwmdutycycle(servo_angle)

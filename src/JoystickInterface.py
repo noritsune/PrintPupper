@@ -181,22 +181,17 @@ class JoystickInterface:
                 arm_delta_values *= self.config.arm_dash_speed_factor
 
             # 受け取った入力を元にアームの角度を更新
-            command.arm_angles = np.clip(
-                state.arm_angles + arm_delta_values * self.config.arm_speed * message_dt,
-                -np.pi / 2,
-                np.pi / 2
+            command.arm_angles_deg = np.clip(
+                state.arm_angles_deg + arm_delta_values * self.config.arm_speed * message_dt,
+                self.config.arm_angle_ranges[:,0],
+                self.config.arm_angle_ranges[:,1]
             )
 
-            # 指のサーボは可動域が狭い
-            command.arm_angles[5] = np.clip(
-                state.arm_angles[5] + arm_delta_values[5] * self.config.arm_speed * message_dt,
-                0,
-                np.pi / 2
-            )
+            print("Arm angles (deg):", np.round(command.arm_angles_deg))
 
             # ボタン入力で足の前後位置をずらす
             command.foot_shift_x = state.foot_shift_x + (int(msg["L3"]) - int(msg["R3"])) * self.config.foot_shift_step
-            print('foot_shift_x:', np.round(command.foot_shift_x, 3), 'm')
+            # print('foot_shift_x:', np.round(command.foot_shift_x, 3), 'm')
 
             return command
 

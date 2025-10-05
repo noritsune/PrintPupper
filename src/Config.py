@@ -81,6 +81,15 @@ class Configuration:
         # L1/L2で足の前後位置をずらすステップ値（m）
         self.foot_shift_step = 0.001
         self.z_delta_as_down_speed_rate = 0.4
+        self.arm_angle_ranges = np.array([
+            [-90, 90],
+            [-90, 85],
+            [-90, 90],
+            [-90, 90],
+            [-90, 90],
+            # 指のサーボは可動域が狭い
+            [-45, 30],
+        ])
 
         #################### COMMANDS ####################
         self.max_x_velocity = 0.30
@@ -145,9 +154,9 @@ class Configuration:
         )
 
         #################### ARM #######################
-        self.arm_speed = np.pi / 2 * 0.1  # maximum arm speed [rad/s]
+        self.arm_speed = 90 * 0.1  # maximum arm speed [deg/s]
         self.arm_dash_speed_factor = 5 # アーム高速モード倍率
-        self.default_arm_angles = np.array([0, np.pi / 2, np.pi / 2, 0, -np.pi / 6, 0])
+        self.default_arm_angles_deg = np.array([10, 90, 90, 0, -30, 0])
 
     @property
     def default_stance(self):
