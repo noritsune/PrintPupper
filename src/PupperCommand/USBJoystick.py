@@ -30,6 +30,8 @@ class USBJoystick():
         self.v["right_analog_y"] = 0
         self.v["button_r1"] = False
         self.v["button_l1"] = False
+        self.v["button_r3"] = False
+        self.v["button_l3"] = False
         self.v["button_square"] = False
         self.v["button_cross"] = False
         self.v["button_circle"] = False
@@ -81,6 +83,8 @@ class USBJoystick():
             print(js_dbg)
             """
 
+            print(js_number)
+
             if js_type & 0x7f == JS_EVENT_BUTTON:
                 vkey = False
                 if js_number == 0:
@@ -95,6 +99,10 @@ class USBJoystick():
                     vkey = 'button_l1'
                 if js_number == 5:
                     vkey = 'button_r1'
+                if js_number == 8:
+                    vkey = 'button_l3'
+                if js_number == 9:
+                    vkey = 'button_r3'
                 if vkey != False:
                     if js_value == 1:
                         self.v[vkey] = True

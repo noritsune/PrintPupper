@@ -171,13 +171,13 @@ class JoystickInterface:
                 arm_delta_values[0] = msg_val_rx if abs(msg_val_rx) > abs(msg_val_ry) else 0
                 arm_delta_values[1] = -msg_val_ry if abs(msg_val_ry) > abs(msg_val_rx) else 0
                 arm_delta_values[2] = -msg_val_ly if abs(msg_val_ly) > abs(msg_val_lx) else 0
-                arm_delta_values[3] = int(msg["L2"]) - int(msg["L1"])
-                arm_delta_values[4] = msg_val_lx if abs(msg_val_lx) > abs(msg_val_ly) else 0
+                # arm_delta_values[3] = int(msg["L2"]) - int(msg["L1"])
+                # arm_delta_values[4] = msg_val_lx if abs(msg_val_lx) > abs(msg_val_ly) else 0
                 # 指のサーボは動きが速いほうが便利
-                arm_delta_values[5] = 3 if msg["R2"] else -3
+                arm_delta_values[5] = 3 if msg["R1"] else -3
 
-            # R1を押している間は高速モードでアームを動かせる
-            if (msg["R1"]):
+            # 高速モードでアームを動かせる
+            if (msg["L1"]):
                 arm_delta_values *= self.config.arm_dash_speed_factor
 
             # 受け取った入力を元にアームの角度を更新
