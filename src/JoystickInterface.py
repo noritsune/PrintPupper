@@ -116,8 +116,8 @@ class JoystickInterface:
             self.previous_activate_toggle = activate_toggle
 
             ####### Handle continuous commands ########
-            # R1押下時は速度・旋回も速くする（アームとは別倍率）
-            if msg["R1"]:
+            # L1押下時は速度・旋回も速くする（アームとは別倍率）
+            if msg["L1"]:
                 speed_factor = self.config.speed_dash_factor
             else:
                 speed_factor = 1.0
