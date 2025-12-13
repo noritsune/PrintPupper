@@ -21,7 +21,9 @@ class State:
 
         self.arm_angles_deg = _config.default_arm_angles_deg.copy()
 
-        self.foot_shift_x = 0.035
+        self.foot_shift_x = 0
+        # アーム装着時
+        # self.foot_shift_x = 0.035
 
 class BehaviorState(Enum):
     DEACTIVATED = -1

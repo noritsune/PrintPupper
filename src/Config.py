@@ -14,11 +14,11 @@ class PWMParams:
 # PrintPupper pin assigen
 #                               FR  FL  BR  BL
         self.pins = np.array([[ 23, 17, 16,  5], \
-                              [ 24, 27, 20,  6], \
-                              [ 25, 22, 21, 19]])
+                              [ 24, 27, 12,  6], \
+                              [ 25, 22, 13, 19]])
         # サーボ名: 土台, 肩(左), 肘, 手首(Pitch), 手首(Roll), 指, 肩(右)
         # 物理ピン番号:   7, 12, 26, 32, 33, 37, 24
-        self.arm_pins = [4, 18,  7, 12, 13, 26,  8]
+        self.arm_pins = [4, 18,  7, 20, 21, 26,  8]
 
 class ServoParams:
     def __init__(self):
