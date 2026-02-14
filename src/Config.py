@@ -14,8 +14,8 @@ class PWMParams:
 # PrintPupper pin assigen
 #                               FR  FL  BR  BL
         self.pins = np.array([[ 23, 17, 16,  5], \
-                              [ 24, 27, 20,  6], \
-                              [ 25, 22, 21, 19]])
+                              [ 18, 27, 12,  6], \
+                              [ 25, 22, 13, 19]])
 
 class ServoParams:
     def __init__(self):
@@ -74,27 +74,27 @@ class Configuration:
         self.x_shift_back =  self.x_center_of_gravity - 0.010
         self.default_z_ref = -0.165
         self.min_z_ref = self.default_z_ref
-        self.max_z_ref = self.default_z_ref + 0.050
-        self.z_delta_as_down_speed = 0.020
+        self.max_z_ref = self.default_z_ref + 0.080
+        self.z_delta_as_down_speed = 0.040
         self.z_delta_as_down_speed_rate = 0.4
 
         #################### COMMANDS ####################
         self.max_x_velocity = 0.32
-        self.max_x_velocity_minus = 0.12
-        self.max_y_velocity = 0.14
+        self.max_x_velocity_minus = 0.32
+        self.max_y_velocity = 0.16
         self.max_yaw_rate = 1.2
         self.max_pitch = 25 * np.pi / 180.0
         self.max_pitch_as_trot = 7 * np.pi / 180.0
 
         #################### MOVEMENT PARAMS ####################
         self.z_time_constant = 0.02
-        self.z_speed = 0.01  # maximum speed [m/s]
+        self.z_speed = 0.03  # maximum speed [m/s]
         self.pitch_deadband = 0.06
         self.pitch_time_constant = 0.25
         self.max_pitch_rate = 0.1
         self.roll_speed = 0.16  # maximum roll rate [rad/s]
         self.yaw_time_constant = 0.5
-        self.max_stance_yaw = 0.2
+        self.max_stance_yaw = 0.6
         self.max_stance_yaw_rate = self.max_yaw_rate
 
         #################### GAIT #######################
@@ -136,9 +136,9 @@ class Configuration:
             [ 0.050,     0,     0,     0],
             [-0.030, 0.070, 0.060, 0.060],
         ])
-        self.hands_opx_dist = -0.090
-        self.hands_opy_dist = -0.040
-        self.hands_opz_dist = -0.080
+        self.hands_opx_dist = -0.120
+        self.hands_opy_dist = -0.070
+        self.hands_opz_dist = -0.110
         # ------------------------------------------------
 
         self.LEG_ORIGINS = np.array(
