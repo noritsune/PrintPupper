@@ -158,15 +158,16 @@ def wait_for_activate(args, config, state, hw, joystick, imu):
         return True
     print("L1 で活性化")
     blink = 0
+    WAIT_DT = 0.01          # この待機ループの周期。imu.update に渡す dt と揃える
     while True:
-        imu.update(IMU_DT)
+        imu.update(WAIT_DT)
         command = joystick.get_command(state)
         if command.activate_event == 1:
             return True
         if blink % 100 == 0 and hw is not None:
             hw.set_led_green(bool((blink // 100) % 2))
         blink += 1
-        time.sleep(0.01)
+        time.sleep(WAIT_DT)
 
 
 def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd):
