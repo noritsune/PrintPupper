@@ -30,3 +30,22 @@ This portal site explains the assembly procedure with detailed figs.
 ・Expandable, easy to modify, and can be equipped with an IMU.  
 ・Can be built with a Raspberry Pi 3 or later, or a Raspberry Pi Zero 2 W.  
   
+## Sync from Windows PC to robot / Windows PCからロボへの同期  
+`sync_to_robot.ps1` sends only the changed robot files (root `*.sh` and `src/`) to `~/PrintPupper` on the Raspberry Pi over ssh. It uses only Windows built-in `ssh` and `tar`.  
+`src/ServoCalibration.py` is never sent, so the calibration done on the robot is kept.  
+`sync_to_robot.ps1` は、ロボ動作に必要なファイル（直下の `*.sh` と `src/`）のうち変更があったものだけを、ssh で Raspberry Pi の `~/PrintPupper` に送ります。Windows 標準の `ssh` と `tar` だけで動きます。  
+`src/ServoCalibration.py` は送らないため、ロボ側で行ったキャリブレーションは保持されます。  
+  
+```powershell
+.\sync_to_robot.ps1                                # sync / 同期
+.\sync_to_robot.ps1 -DryRun                        # list changed files only / 送る予定のファイルを表示するだけ
+.\sync_to_robot.ps1 -RobotHost pi@192.168.0.123    # another robot (default: pi@192.168.0.190) / 別のロボに送る
+```
+  
+・Set up ssh key login to the robot beforehand (`ssh pi@<robot IP>` must connect without a password).  
+・Files deleted on the PC are not deleted on the robot.  
+・Restart the service to apply the changes: `sudo systemctl restart robot`  
+・事前に ssh 鍵認証を設定しておく（`ssh pi@<ロボのIP>` がパスワードなしでつながる状態）。  
+・PC で削除したファイルはロボ側では削除されない。  
+・反映するにはサービスを再起動する: `sudo systemctl restart robot`  
+  

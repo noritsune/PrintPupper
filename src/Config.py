@@ -14,8 +14,8 @@ class PWMParams:
 # PrintPupper pin assigen
 #                               FR  FL  BR  BL
         self.pins = np.array([[ 23, 17, 16,  5], \
-                              [ 18, 27, 12,  6], \
-                              [ 25, 22, 13, 19]])
+                              [ 24, 27, 20,  6], \
+                              [ 25, 22, 21, 19]])
 
 class ServoParams:
     def __init__(self):
