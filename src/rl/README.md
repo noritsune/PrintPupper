@@ -21,6 +21,14 @@ IMU(MPU6050/9250) -> 姿勢推定 -> ObsBuilder(38次元) -> 方策(MLP) -> 関�
 
 ## 使い方
 
+`robot.service` (`run_robot.py`) と同じサーボを使うので、先に止める。
+pigpiod は `robot.service` が起動しているので、止めると一緒に止まる。
+
+```bash
+sudo systemctl stop robot
+sudo pigpiod
+```
+
 ```bash
 # 推論時間だけ測る (ハードウェア不要。母艦でも走る)
 python3 src/run_robot_rl.py --bench
@@ -122,9 +130,14 @@ v0.2 の値に直して学習し直すのが筋。
 | `check_chain.py` | 経路まるごとの検証 (母艦で走る) |
 
 `pupper_rl_deploy.py` は上流と diff が取れるよう**書き換えないこと**。
-上流を直したら丸ごとコピーし直す。方策を学習し直したら:
+上流を直したら丸ごとコピーし直す。方策を学習し直したら、WSL の `~/pupper_rl` で
+`deploy/policy_u_stand.npz` に書き出し、Windows から `-PullPolicy` 付きで同期する
+(リポジトリの `src/rl/policy_u_stand.npz` を差し替えてからロボに送る):
 
 ```bash
-cd ~/pupper_rl && python scripts/export_npz.py --ckpt out/train/<run>/ckpt/final.pkl \
-    --out ~/PrintPupper/src/rl/policy_u_stand.npz
+cd ~/pupper_rl && python scripts/export_npz.py --ckpt out/train/<run>/ckpt/final.pkl
+```
+
+```powershell
+.\sync_to_robot.ps1 -PullPolicy
 ```

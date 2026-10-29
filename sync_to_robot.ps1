@@ -2,13 +2,27 @@
 # src/ServoCalibration.py is never sent: the robot rewrites it in calibration mode.
 #   .\sync_to_robot.ps1            sync
 #   .\sync_to_robot.ps1 -DryRun    list changed files only
+#   .\sync_to_robot.ps1 -PullPolicy  copy the RL policy from $PolicySource into src/rl first
 param(
     [string]$RobotHost = "pi@192.168.0.190",
     [string]$RemoteDir = "PrintPupper",
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$PullPolicy,
+    [string]$PolicySource = "\\wsl.localhost\Ubuntu\root\pupper_rl\deploy\policy_u_stand.npz"
 )
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
+
+if ($PullPolicy) {
+    $policyInRepo = "src/rl/policy_u_stand.npz"
+    if (-not (Test-Path -LiteralPath $PolicySource -PathType Leaf)) { throw "policy not found: $PolicySource" }
+    if ($DryRun) {
+        Write-Host "Would copy policy: $PolicySource -> $policyInRepo"
+    } else {
+        Copy-Item -LiteralPath $PolicySource $policyInRepo
+        Write-Host "Policy copied: $PolicySource -> $policyInRepo"
+    }
+}
 
 $excluded = @("src/ServoCalibration.py")
 

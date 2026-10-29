@@ -11,4 +11,7 @@ sudo pip install UDPComms
 sudo pip install ds4drv
 sudo pip install transforms3d
 sudo pip install evdev==1.4.0
+sudo pip install smbus2
+echo "Enable I2C for IMU..."
+sudo raspi-config nonint do_i2c 0
 echo "...done"

@@ -40,6 +40,7 @@ This portal site explains the assembly procedure with detailed figs.
 .\sync_to_robot.ps1                                # sync / 同期
 .\sync_to_robot.ps1 -DryRun                        # list changed files only / 送る予定のファイルを表示するだけ
 .\sync_to_robot.ps1 -RobotHost pi@192.168.0.123    # another robot (default: pi@192.168.0.190) / 別のロボに送る
+.\sync_to_robot.ps1 -PullPolicy                    # copy the RL policy from WSL ~/pupper_rl/deploy first / WSL の学習済み方策を取り込んでから送る
 ```
   
 ・Set up ssh key login to the robot beforehand (`ssh pi@<robot IP>` must connect without a password).  
