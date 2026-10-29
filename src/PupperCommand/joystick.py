@@ -80,6 +80,8 @@ def forPS4orUSBjoystick(ps4_usb, devpath):
             L2 = values["button_l2"]
             R3 = values["button_r3"]
             L3 = values["button_l3"]
+            B11 = values.get("button_11", False)
+            B12 = values.get("button_12", False)
             square = values["button_square"]
             x = values["button_cross"]
             circle = values["button_circle"]
@@ -123,6 +125,8 @@ def forPS4orUSBjoystick(ps4_usb, devpath):
                 "L2": L2,
                 "R3": R3,
                 "L3": L3,
+                "B11": B11,
+                "B12": B12,
                 "dpady": dpady,
                 "dpadx": dpadx,
                 "x": x,

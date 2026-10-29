@@ -1,6 +1,7 @@
 import sys
 import numpy as np
 import time
+from enum import Enum
 from Controller import Controller
 from JoystickInterface import JoystickInterface
 from State import State
@@ -9,6 +10,17 @@ from Config import Configuration
 from Kinematics import four_legs_inverse_kinematics
 from State import RState, State
 from run_robot_caliblate_mode_2 import run_robot_caliblate_mode
+from run_robot_rl import PolicyWalker
+from rl.pupper_rl_deploy import DEFAULT_POSE
+from rl.joint_map import rl_to_printpupper
+
+class WalkMode(Enum):
+    RULE = 0    # gait generator + IK (Controller), default
+    POLICY = 1  # reinforcement learning policy (run_robot_rl.py)
+
+WAIT_DT = 0.01
+HANDOVER_RAMP_SECS = 0.8
+HANDOVER_RAMP_DT = 0.02
 
 def main(use_imu=False):
     # Create config
@@ -25,78 +37,163 @@ def main(use_imu=False):
     joystick_interface = JoystickInterface(config)
     print("Done.")
 
+    # IMU gyro calibration runs here, so the robot must be still at startup
+    policy_walker = create_policy_walker()
+
+    mode = WalkMode.RULE
+    show_mode(hardware_interface, mode)
+
+    # Joint angles last sent to the servos (None until the first activation)
+    pose = None
+
     # Wait until the activate button has been pressed
     joystick_interface.set_color(config.ps4_deactivated_color)
     while True:
-        wait_loop = 0
-        led_blink = 0
+        mode = wait_for_activate(config, state, hardware_interface, joystick_interface, policy_walker, mode)
 
-        print("Robot Waiting L1 button to activate robot")
-        wait_loop_first = False
+        # Walk until deactivated. Buttons 11/12 hand over to the other mode without stopping.
         while True:
-            if (wait_loop % (25 if wait_loop_first else 100)) == 0:
-                hardware_interface.set_led_green(bool(led_blink % 2))
-                led_blink += 1
-            wait_loop +=1
-            command = joystick_interface.get_command(state)
-            # PS4 gamepad from bluetooth mode as slow blink / USB gamepad as first blink
-            if command.joy_ps4_usb:
-                wait_loop_first = False
+            show_mode(hardware_interface, mode)
+            if mode == WalkMode.RULE:
+                state = State()
+                next_mode, pose = run_rule_based(config, controller, state, hardware_interface,
+                                                 joystick_interface, policy_walker, pose)
             else:
-                wait_loop_first = True
-            if command.activate_event == 1:
+                next_mode, pose = run_policy_based(config, state, hardware_interface,
+                                                   joystick_interface, policy_walker, pose)
+            if next_mode is None:
                 break
-            if command.caliblate_mode_event:
-                command.caliblate_mode_event = False
-                joystick_interface.set_color(config.ps4_calibration_color)
-                run_robot_caliblate_mode(config, hardware_interface, joystick_interface)
-                joystick_interface.set_color(config.ps4_deactivated_color)
-                sys.exit()
-            time.sleep(0.01)
+            mode = next_mode
 
-        print("Robot Activate")
-        hardware_interface.set_led_green(True)
-        joystick_interface.set_color(config.ps4_activated_color)
-        while True:
-            d_time = time.time()
+def create_policy_walker():
+    try:
+        return PolicyWalker()
+    except Exception as e:
+        print("Policy walk disabled (IMU not available):", e)
+        return None
 
-            # Parse the udp joystick commands and then update the robot controller's parameters
-            command = joystick_interface.get_command(state)
+def show_mode(hardware_interface, mode):
+    # Blue LED on while the policy walk is selected
+    hardware_interface.set_led_blue(mode == WalkMode.POLICY)
 
-            # Update PS4 Joystick LED, Update Onboard LED, Exit(to Deactivate) check
-            if update_leds_loop_exit(config, state, command, hardware_interface, joystick_interface):
-                break
+def select_mode(command, mode, policy_walker):
+    if command.rule_mode_event:
+        return WalkMode.RULE
+    if command.policy_mode_event:
+        if policy_walker is None:
+            print("Policy walk is not available (IMU not initialized)")
+            return mode
+        return WalkMode.POLICY
+    return mode
 
-            # Step the controller forward by dt
-            controller.run(state, command)
+def wait_for_activate(config, state, hardware_interface, joystick_interface, policy_walker, mode):
+    wait_loop = 0
+    led_blink = 0
 
-            # Update the pwm widths going to the servos
-            hardware_interface.set_actuator_positions(state.joint_angles)
+    print("Robot Waiting L1 button to activate robot, walk mode:", mode.name)
+    wait_loop_first = False
+    while True:
+        if (wait_loop % (25 if wait_loop_first else 100)) == 0:
+            hardware_interface.set_led_green(bool(led_blink % 2))
+            led_blink += 1
+        wait_loop +=1
+        command = joystick_interface.get_command(state)
+        # PS4 gamepad from bluetooth mode as slow blink / USB gamepad as first blink
+        if command.joy_ps4_usb:
+            wait_loop_first = False
+        else:
+            wait_loop_first = True
+        if command.activate_event == 1:
+            return mode
+        new_mode = select_mode(command, mode, policy_walker)
+        if new_mode != mode:
+            mode = new_mode
+            print("Walk mode:", mode.name)
+            show_mode(hardware_interface, mode)
+        if command.caliblate_mode_event:
+            command.caliblate_mode_event = False
+            joystick_interface.set_color(config.ps4_calibration_color)
+            run_robot_caliblate_mode(config, hardware_interface, joystick_interface)
+            joystick_interface.set_color(config.ps4_deactivated_color)
+            sys.exit()
+        if policy_walker is not None:
+            policy_walker.idle(WAIT_DT)
+        time.sleep(WAIT_DT)
 
-            # cycle tune
-            t_time = time.time()
-            dt = (float)(t_time - d_time)
-            dt_dt = (float)(config.dt - dt)
-            dt_dt = round(dt_dt, 3)
-            if (dt_dt > 0) and (dt_dt >= config.dt_min_sleep):
-                time.sleep(dt_dt)
+def run_rule_based(config, controller, state, hardware_interface, joystick_interface, policy_walker, start_pose):
+    """Starts from start_pose (if given). Returns (next mode or None on deactivate, current joint angles)."""
+    print("Robot Activate (rule based)")
+    hardware_interface.set_led_green(True)
+    joystick_interface.set_color(config.ps4_activated_color)
+    last_pose = start_pose
+    while True:
+        d_time = time.time()
 
-def update_leds_loop_exit(config, state, command, hardware_interface, joystick_interface):
+        # Parse the udp joystick commands and then update the robot controller's parameters
+        command = joystick_interface.get_command(state)
+
+        if select_mode(command, WalkMode.RULE, policy_walker) == WalkMode.POLICY:
+            print("Robot switch to policy walk")
+            return WalkMode.POLICY, last_pose
+
+        # Update PS4 Joystick LED, Exit(to Deactivate) check
+        if update_leds_loop_exit(config, state, command, joystick_interface):
+            return None, last_pose
+
+        # Step the controller forward by dt
+        controller.run(state, command)
+
+        # set_actuator_positions overwrites the knee row with the servo angle, so keep the joint angles
+        last_pose = state.joint_angles.copy()
+        if start_pose is not None:
+            ramp_joint_angles(hardware_interface, start_pose, last_pose)
+            start_pose = None
+
+        # Update the pwm widths going to the servos
+        hardware_interface.set_actuator_positions(state.joint_angles)
+
+        if policy_walker is not None:
+            policy_walker.idle(config.dt)
+
+        # cycle tune
+        t_time = time.time()
+        dt = (float)(t_time - d_time)
+        dt_dt = (float)(config.dt - dt)
+        dt_dt = round(dt_dt, 3)
+        if (dt_dt > 0) and (dt_dt >= config.dt_min_sleep):
+            time.sleep(dt_dt)
+
+def run_policy_based(config, state, hardware_interface, joystick_interface, policy_walker, start_pose):
+    """Starts from start_pose (if given). Returns (next mode or None on stop, current joint angles)."""
+    print("Robot Activate (policy walk)")
+    reason = policy_walker.run(config, state, hardware_interface, joystick_interface, start_pose)
+    # run_policy always ends at the policy's nominal pose
+    pose = rl_to_printpupper(DEFAULT_POSE)
+    if reason == "rule_mode":
+        return WalkMode.RULE, pose
+    return None, pose
+
+def ramp_joint_angles(hardware_interface, start, goal):
+    # Move smoothly from the other mode's pose instead of jumping all 12 servos at once
+    steps = max(int(HANDOVER_RAMP_SECS / HANDOVER_RAMP_DT), 1)
+    for i in range(steps + 1):
+        a = i / steps
+        hardware_interface.set_actuator_positions((1 - a) * start + a * goal)
+        time.sleep(HANDOVER_RAMP_DT)
+
+def update_leds_loop_exit(config, state, command, joystick_interface):
     if command.activate_event:
         if state.now_state == RState.REST:
             print("Robot Deactivate")
             joystick_interface.set_color(config.ps4_deactivated_color)
-            hardware_interface.set_led_blue(False)
             return True
 
     if command.trot_event:
         if state.now_state == RState.REST:
             joystick_interface.set_color(config.ps4_torot_color)
-            hardware_interface.set_led_blue(True)
             print("Robot start Torot")
         else:
             joystick_interface.set_color(config.ps4_activated_color)
-            hardware_interface.set_led_blue(False)
             print("Robot stop Torot")
 
     return False

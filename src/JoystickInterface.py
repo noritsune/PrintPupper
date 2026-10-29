@@ -16,6 +16,8 @@ class JoystickInterface:
         self.previous_hands_toggle = 0
         self.previous_hands_event_arg_RL = 0
         self.previous_activate_toggle = 0
+        self.previous_rule_mode_toggle = False
+        self.previous_policy_mode_toggle = False
 
         self.auto_trot = False
         self.auto_trot_sensitivity = 0.25
@@ -128,10 +130,18 @@ class JoystickInterface:
                 command.caliblate_mode_event = True
                 print('go Calibrate mode')
 
+            # Walk mode: button 11 = rule based, button 12 = policy (reinforcement learning)
+            rule_mode_toggle = msg.get("B11", False)
+            policy_mode_toggle = msg.get("B12", False)
+            command.rule_mode_event = rule_mode_toggle and not self.previous_rule_mode_toggle
+            command.policy_mode_event = policy_mode_toggle and not self.previous_policy_mode_toggle
+
             # Update previous values for toggles and state
             self.previous_gait_toggle = gait_toggle
             self.previous_hands_toggle = hands_toggle
             self.previous_activate_toggle = activate_toggle
+            self.previous_rule_mode_toggle = rule_mode_toggle
+            self.previous_policy_mode_toggle = policy_mode_toggle
 
             ####### Handle continuous commands ########
             if msg_val_ly < 0:

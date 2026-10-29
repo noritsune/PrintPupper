@@ -21,3 +21,5 @@ class Command:
         self.trot_event = False
         self.activate_event = False
         self.caliblate_mode_event = False
+        self.rule_mode_event = False
+        self.policy_mode_event = False

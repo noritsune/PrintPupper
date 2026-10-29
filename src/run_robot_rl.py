@@ -61,7 +61,7 @@ CMD_LIMIT = np.array([0.30, 0.15, 1.00], np.float32)
 GATE_FALLEN = 0.5
 
 
-def parse_args():
+def parse_args(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-servo", action="store_true",
                     help="サーボに出力しない。IMU と方策の値だけ表示する")
@@ -81,7 +81,7 @@ def parse_args():
                     help="推論時間だけ測って終わる (ハードウェア不要)")
     ap.add_argument("--i2c-bus", type=int, default=1)
     ap.add_argument("--print-hz", type=float, default=2.0)
-    return ap.parse_args()
+    return ap.parse_args(argv)
 
 
 def bench(n=2000):
@@ -108,21 +108,11 @@ def main():
 
     from Config import Configuration
     from State import RState, State
-    from rl.imu import Imu
 
     config = Configuration()
     pol = NpzPolicy(POLICY_NPZ, obs_dim=38)
     ob = ObsBuilder(gait_freq=GAIT_FREQ, unified=True)
-
-    print("IMU を初期化...", end="", flush=True)
-    imu = Imu(bus=args.i2c_bus)
-    print(f" {imu.chip}")
-    print("機体を水平に静止させたままジャイロを校正中 (2秒)...")
-    cal = imu.calibrate_gyro(2.0)
-    print(f"  ジャイロバイアス {np.degrees(cal['gyro_bias'])} deg/s")
-    print(f"  |accel| {cal['accel_norm']:.3f} m/s^2 (期待 9.807)")
-    print(f"  取り付け傾き {cal['tilt_deg']:.2f} deg "
-          f"{'OK' if cal['tilt_deg'] <= 1.7 else '<- 学習の想定 1.7deg を超えている'}")
+    imu = init_imu(args.i2c_bus)
 
     hw = None
     if not args.no_servo:
@@ -151,6 +141,55 @@ def main():
         shutdown(hw, joystick, config, imu)
 
 
+def init_imu(bus):
+    """IMU を開いてジャイロを校正する。機体は水平に静止させておくこと。"""
+    from rl.imu import Imu
+
+    print("IMU を初期化...", end="", flush=True)
+    imu = Imu(bus=bus)
+    print(f" {imu.chip}")
+    print("機体を水平に静止させたままジャイロを校正中 (2秒)...")
+    cal = imu.calibrate_gyro(2.0)
+    print(f"  ジャイロバイアス {np.degrees(cal['gyro_bias'])} deg/s")
+    print(f"  |accel| {cal['accel_norm']:.3f} m/s^2 (期待 9.807)")
+    print(f"  取り付け傾き {cal['tilt_deg']:.2f} deg "
+          f"{'OK' if cal['tilt_deg'] <= 1.7 else '<- 学習の想定 1.7deg を超えている'}")
+    return imu
+
+
+class PolicyWalker:
+    """run_robot.py の歩行モード切替から方策歩行を使うための窓口。
+
+    IMU と方策を持ち続け、方策を回していない間も idle() で姿勢推定を進めておく
+    (切り替えた瞬間に重力方向がずれていないように)。
+    """
+
+    def __init__(self, i2c_bus=1):
+        self.args = parse_args([])
+        self.pol = NpzPolicy(POLICY_NPZ, obs_dim=38)
+        self.ob = ObsBuilder(gait_freq=GAIT_FREQ, unified=True)
+        self.imu = init_imu(i2c_bus)
+        self.zero_cmd = np.zeros(3, np.float32)
+
+    def idle(self, dt):
+        self.imu.update(dt)
+
+    def run(self, config, state, hw, joystick, start_joint_angles=None):
+        """活性化から停止まで方策で歩く。戻り値は run_policy と同じ停止理由。
+
+        start_joint_angles: いまサーボに出している PrintPupper の joint_angles。
+        渡すとそこから基準姿勢へ移す (ルールベースからの切り替え用)。
+        """
+        start = None
+        if start_joint_angles is not None:
+            start = jm.printpupper_to_rl(start_joint_angles)
+        return run_policy(self.args, config, state, hw, joystick, self.imu,
+                          self.pol, self.ob, self.zero_cmd, start)
+
+    def close(self):
+        self.imu.close()
+
+
 def wait_for_activate(args, config, state, hw, joystick, imu):
     """L1 が押されるまで待つ。--no-joystick ならすぐ始める。"""
     if joystick is None:
@@ -170,12 +209,18 @@ def wait_for_activate(args, config, state, hw, joystick, imu):
         time.sleep(WAIT_DT)
 
 
-def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd):
-    """活性化してから停止するまでの 50 Hz ループ。"""
+def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd, start=None):
+    """活性化してから停止するまでの 50 Hz ループ。
+
+    start: 活性化時に基準姿勢へ移す起点 (pupper_rl の 12 関節角)。None なら RAMP_START。
+    戻り値は停止理由: "deactivate" (L1) / "rule_mode" (11ボタン) / "fallen" / "secs"
+    """
     ob.reset()
+    joint_rad = DEFAULT_POSE
+    reason = None
     if hw is not None:
         hw.set_led_green(True)
-        ramp_to_nominal(hw, args.ramp)
+        ramp_to_nominal(hw, args.ramp, start)
     if joystick is not None:
         joystick.set_color(config.ps4_activated_color)
     print("方策 開始")
@@ -197,6 +242,11 @@ def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd):
             command = joystick.get_command(state)
             if command.activate_event:
                 print("方策 停止 (L1)")
+                reason = "deactivate"
+                break
+            if command.rule_mode_event:
+                print("方策 停止 (11ボタン: ルールベースへ)")
+                reason = "rule_mode"
                 break
             cmd = np.array([command.horizontal_velocity[0],
                             command.horizontal_velocity[1],
@@ -217,6 +267,7 @@ def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd):
             fallen_since = fallen_since or now
             if now - fallen_since > args.fall_timeout:
                 print(f"転倒を検出 (ゲート {gate:.2f})。--recover が無いので停止")
+                reason = "fallen"
                 break
         else:
             fallen_since = None
@@ -228,6 +279,7 @@ def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd):
         steps += 1
         if args.secs and (now - t0) > args.secs:
             print(f"--secs {args.secs} に到達")
+            reason = "secs"
             break
 
         if now - last_print > 1.0 / args.print_hz:
@@ -253,21 +305,26 @@ def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd):
     hz = steps / max(time.perf_counter() - t0, 1e-6)
     print(f"方策 終了  {steps} step / 実効 {hz:.1f} Hz / 遅れ最大 {worst_late*1000:.1f}ms")
     if hw is not None:
-        ramp_to_nominal(hw, 0.8)
+        ramp_to_nominal(hw, 0.8, joint_rad)
         hw.set_led_green(False)
     if joystick is not None:
         joystick.set_color(config.ps4_deactivated_color)
+    return reason
 
 
-def ramp_to_nominal(hw, secs):
-    """サーボの中立姿勢から方策の基準姿勢へ、指定秒かけて滑らかに移す。
+# 中立 = abduction 0 / hip 0 / knee(beta) pi は脚が伸びきった姿勢なので、
+# そこからではなく「膝だけ基準値・他は 0」から始める
+RAMP_START = np.array([0.0, 0.0, -np.pi / 2] * 4)
+
+
+def ramp_to_nominal(hw, secs, start=None):
+    """start (既定は RAMP_START) から方策の基準姿勢へ、指定秒かけて滑らかに移す。
 
     通電直後にいきなり基準姿勢を指令すると 12個が同時に飛んで機体が跳ねる。
     """
+    if start is None:
+        start = RAMP_START
     steps = max(int(secs / CTRL_DT), 1)
-    # 中立 = abduction 0 / hip 0 / knee(beta) pi は脚が伸びきった姿勢なので、
-    # そこからではなく「膝だけ基準値・他は 0」から始める
-    start = np.array([0.0, 0.0, -np.pi / 2] * 4)
     for i in range(steps + 1):
         a = i / steps
         q = (1 - a) * start + a * DEFAULT_POSE

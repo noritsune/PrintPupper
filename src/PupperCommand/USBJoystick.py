@@ -38,6 +38,8 @@ class USBJoystick():
         self.v["button_cross"] = False
         self.v["button_circle"] = False
         self.v["button_triangle"] = False
+        self.v["button_11"] = False
+        self.v["button_12"] = False
         self.v["dpad_right"] = 0
         self.v["dpad_left"] = 0
         self.v["dpad_up"] = 0
@@ -116,6 +118,11 @@ class USBJoystick():
                         self.v[vkey] = True
                     else:
                         self.v[vkey] = False
+                # Buttons 11/12 (printed numbering) also share L3/R3 with 9/10, so keep them separately
+                if js_number == 10:
+                    self.v['button_11'] = (js_value == 1)
+                if js_number == 11:
+                    self.v['button_12'] = (js_value == 1)
 
             if js_type & 0x7f == JS_EVENT_AXIS:
                 if (js_number >= 0) and (js_number <= 3):
