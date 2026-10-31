@@ -82,7 +82,9 @@ class HardwareInterface:
     def angle_to_pwmdutycycle(self, angle, axis_index, leg_index):
         neutral = self.servo_params.neutral_angles[axis_index, leg_index]
         multi = self.servo_params.servo_multipliers[axis_index, leg_index]
-        angle_deviation = (angle - neutral) * multi
+        # 中立からの差を [-pi, pi) に折り返す。非平行リンクの kneeX は atan2 の和なので
+        # +-pi を越えて返ることがあり、そのままだと可動域の反対端に張り付く
+        angle_deviation = ((angle - neutral + math.pi) % (2 * math.pi) - math.pi) * multi
         usec_val = self.servo_params.pwm_usec_neutral + (self.servo_params.pwm_usec_per_rad * angle_deviation)
         usec_val_limited = max(self.servo_params.pwm_usec_min, min(usec_val, self.servo_params.pwm_usec_max))
         return int(usec_val_limited)
