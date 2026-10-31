@@ -113,28 +113,30 @@ beta            = q_lower + pi
 一致する (20,000 姿勢でばらつき 1e-13 deg)。別々に書かれた2実装が一致するので、
 脚の並び・角度規約・符号がすべて合っている。
 
-## 既知の食い違い: 膝サーボホーンの長さ
+## 膝サーボホーンの長さ
 
-`rl/pupper_rl_deploy.py` (= `~/pupper_rl/env/deploy.py` の逐語コピー) の
-4節リンク計算は **PrintPupper_ROS という別フォークの寸法**で書かれていて、
-ホーンが `_L3 = 50mm`。実機 v0.2 は `Config.LEG_UNPRALLEL_L4 = 60mm`。
+方策 `policy_u_stand.npz` は `~/pupper_rl/out/train/u60_stand` から書き出したもので、
+学習側の `env/linkage.py` は実機 v0.2 と同じホーン `L3_LEN = 60mm`
+(`Config.LEG_UNPRALLEL_L4`) で `linkage_infeasible` ペナルティを掛けている。
+`OFF_X/OFF_Y = (5, -25)` は v0.2 の `UNPRALLEL_ofstX/Y = (-5, 25)` と座標系の
+向きが違うだけで同じ位置。
 
-そのため**実機では PrintPupper 自身の `HardwareInterface` (60mm) を通す**。
-`pupper_rl_deploy.py` のうち使ってよいのは上半分 (`ObsBuilder` /
-`upright_gate` / `unified_action_scale` / `DEFAULT_POSE`) だけ。
+一方、`rl/pupper_rl_deploy.py` (= `~/pupper_rl/env/deploy.py` の逐語コピー) の
+下半分の4節リンク計算は **PrintPupper_ROS という別フォークの寸法**
+(`_L3 = 50mm`) のまま。そのため**実機では PrintPupper 自身の
+`HardwareInterface` を通す**。`pupper_rl_deploy.py` のうち使ってよいのは上半分
+(`ObsBuilder` / `upright_gate` / `unified_action_scale` / `DEFAULT_POSE`) だけ。
 
-影響 (`check_mapping.py` の実測、サーボ角の差):
+`check_mapping.py` の [3] は、この 50mm 版と実機 60mm のサーボ角の差を出す
+(歩行の可動域で最大 4.2 deg、復帰の可動域で最大 51.7 deg)。
 
-| 可動域 | 中央 | 95% | 最大 |
-|---|---|---|---|
-| 歩行 (+-0.25 rad) | 1.4 deg | 3.8 deg | **4.2 deg** |
-| 復帰 (+-1.6 rad) | 7.0 deg | 24.6 deg | 51.7 deg |
+シミュレーションでの成績 (`~/pupper_rl` の評価スクリプト、ホーン 60mm で評価):
 
-**歩行では 4.2 度以内**に収まるので、そのまま載せてよい。ただし学習側の
-`linkage_infeasible` ペナルティは 50mm で形を決めていたので、実機 v0.2 の
-実現可能域とは厳密には一致しない。復帰 (`--recover`) まで詰めるなら、
-`~/pupper_rl/env/linkage.py` の `L3_LEN` を 60.0、`OFF_X/OFF_Y` を
-v0.2 の値に直して学習し直すのが筋。
+| | 値 |
+|---|---|
+| 転倒復帰 (`recover_test --env unified`, 256本) | 87.9% (仰向け 88.8 / 横倒し 85.0 / 正立 87.2) |
+| 段差踏破 (`step_test --env unified --gait-freq 1.2 1.2`) | 20mm 100 / 30mm 91.7 / 40mm 79.2 / 50mm 8.3 % |
+| 4節リンク実現不能 / PWM 飽和 / トルク飽和 | 1.30% / 0.00% / 3.4% |
 
 ## ファイル
 
