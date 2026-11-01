@@ -27,6 +27,9 @@
   - 既定では**転倒復帰をしない**。傾きゲートが下がったまま --fall-timeout 秒
     続いたらサーボを切って待機に戻る。復帰まで試すなら --recover を付ける。
     (復帰は可動域を 1.6 rad まで開くので、最初の通電では外すこと)
+  - --recover では起き上がれるまで繰り返す。転んだまま --retry-secs 秒たったら
+    基準姿勢へ戻し、行動履歴を消してからもう一度試す。
+    run_robot.py から使う PolicyWalker は常に --recover で動く。
 """
 import argparse
 import os
@@ -60,6 +63,9 @@ CMD_LIMIT = np.array([0.30, 0.15, 1.00], np.float32)
 # 傾きゲートがこれを下回ったら「転んでいる」とみなす (学習側と同じしきい値)
 GATE_FALLEN = 0.5
 
+# 復帰をやり直すとき、いまの姿勢から基準姿勢へ戻す秒数
+RETRY_RAMP_SECS = 0.8
+
 
 def parse_args(argv=None):
     ap = argparse.ArgumentParser()
@@ -73,6 +79,8 @@ def parse_args(argv=None):
                     help="転倒復帰も許す (可動域が 1.6 rad まで開く)")
     ap.add_argument("--fall-timeout", type=float, default=0.5,
                     help="転んだまま何秒でサーボを切るか (--recover 時は無効)")
+    ap.add_argument("--retry-secs", type=float, default=4.0,
+                    help="--recover 時、転んだまま何秒で基準姿勢に戻してやり直すか")
     ap.add_argument("--ramp", type=float, default=1.5,
                     help="活性化時に基準姿勢へ移す秒数")
     ap.add_argument("--secs", type=float, default=0.0,
@@ -165,7 +173,7 @@ class PolicyWalker:
     """
 
     def __init__(self, i2c_bus=1):
-        self.args = parse_args([])
+        self.args = parse_args(["--recover"])
         self.pol = NpzPolicy(POLICY_NPZ, obs_dim=38)
         self.ob = ObsBuilder(gait_freq=GAIT_FREQ, unified=True)
         self.imu = init_imu(i2c_bus)
@@ -220,7 +228,7 @@ def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd, start
     reason = None
     if hw is not None:
         hw.set_led_green(True)
-        ramp_to_nominal(hw, args.ramp, start)
+        ramp_to_nominal(hw, args.ramp, start, imu)
     if joystick is not None:
         joystick.set_color(config.ps4_activated_color)
     print("方策 開始")
@@ -228,6 +236,7 @@ def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd, start
     t0 = time.perf_counter()
     next_tick = t0
     fallen_since = None
+    retries = 0
     worst_late = 0.0
     last_print = t0
     steps = 0
@@ -263,12 +272,26 @@ def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd, start
         # --- 転倒の扱い ---------------------------------------------------
         gate = upright_gate(imu.gravity)
         now = time.perf_counter()
-        if gate < GATE_FALLEN and not args.recover:
+        if gate < GATE_FALLEN:
             fallen_since = fallen_since or now
-            if now - fallen_since > args.fall_timeout:
+            fallen_secs = now - fallen_since
+            if not args.recover and fallen_secs > args.fall_timeout:
                 print(f"転倒を検出 (ゲート {gate:.2f})。--recover が無いので停止")
                 reason = "fallen"
                 break
+            if args.recover and fallen_secs > args.retry_secs:
+                # 方策が途中の姿勢で固まることがあるので、L1 で入れ直したときと
+                # 同じく基準姿勢と空の行動履歴から試し直す
+                retries += 1
+                print(f"{args.retry_secs:.1f} 秒起き上がれない (ゲート {gate:.2f})。"
+                      f"基準姿勢に戻してやり直す ({retries} 回目)")
+                if hw is not None:
+                    ramp_to_nominal(hw, RETRY_RAMP_SECS, joint_rad, imu)
+                ob.reset()
+                joint_rad = DEFAULT_POSE
+                fallen_since = None
+                next_tick = time.perf_counter()
+                continue
         else:
             fallen_since = None
 
@@ -285,7 +308,9 @@ def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd, start
         if now - last_print > 1.0 / args.print_hz:
             last_print = now
             up = -imu.gravity[2]
+            gx, gy, gz = imu.gravity
             print(f"t {now-t0:6.1f}s  指令 [{cmd[0]:+.2f} {cmd[1]:+.2f} {cmd[2]:+.2f}]  "
+                  f"重力 [{gx:+.2f} {gy:+.2f} {gz:+.2f}]  "
                   f"水平度 {up:+.2f} ゲート {gate:.2f} 可動域 {ob._scale:.2f}rad  "
                   f"遅れ最大 {worst_late*1000:.1f}ms  加速度棄却 {imu.accel_rejected}")
 
@@ -303,9 +328,10 @@ def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd, start
             time.sleep(-late)
 
     hz = steps / max(time.perf_counter() - t0, 1e-6)
-    print(f"方策 終了  {steps} step / 実効 {hz:.1f} Hz / 遅れ最大 {worst_late*1000:.1f}ms")
+    print(f"方策 終了  {steps} step / 実効 {hz:.1f} Hz / 遅れ最大 {worst_late*1000:.1f}ms"
+          f" / 復帰のやり直し {retries} 回")
     if hw is not None:
-        ramp_to_nominal(hw, 0.8, joint_rad)
+        ramp_to_nominal(hw, 0.8, joint_rad, imu)
         hw.set_led_green(False)
     if joystick is not None:
         joystick.set_color(config.ps4_deactivated_color)
@@ -317,10 +343,12 @@ def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd, start
 RAMP_START = np.array([0.0, 0.0, -np.pi / 2] * 4)
 
 
-def ramp_to_nominal(hw, secs, start=None):
+def ramp_to_nominal(hw, secs, start=None, imu=None):
     """start (既定は RAMP_START) から方策の基準姿勢へ、指定秒かけて滑らかに移す。
 
     通電直後にいきなり基準姿勢を指令すると 12個が同時に飛んで機体が跳ねる。
+    imu を渡すと、移している間も姿勢推定を進める (脚を動かすと胴体も回るので、
+    止めておくと方策を再開した瞬間の重力方向がずれる)。
     """
     if start is None:
         start = RAMP_START
@@ -329,7 +357,12 @@ def ramp_to_nominal(hw, secs, start=None):
         a = i / steps
         q = (1 - a) * start + a * DEFAULT_POSE
         hw.set_actuator_positions(jm.rl_to_printpupper(q))
-        time.sleep(CTRL_DT)
+        if imu is None:
+            time.sleep(CTRL_DT)
+            continue
+        for _ in range(IMU_SUBSTEPS):
+            imu.update(IMU_DT)
+            time.sleep(IMU_DT)
 
 
 def shutdown(hw, joystick, config, imu):
