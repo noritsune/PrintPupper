@@ -120,7 +120,7 @@ beta            = q_lower + pi
 
 ## 膝サーボホーンの長さ
 
-方策 `policy_u_stand.npz` は `~/pupper_rl/out/train/u60_stand` から書き出したもので、
+方策 `policy_u_stand.npz` は `~/pupper_rl/out/train/t60c_stand` から書き出したもので、
 学習側の `env/linkage.py` は実機 v0.2 と同じホーン `L3_LEN = 60mm`
 (`Config.LEG_UNPRALLEL_L4`) で `linkage_infeasible` ペナルティを掛けている。
 `OFF_X/OFF_Y = (5, -25)` は v0.2 の `UNPRALLEL_ofstX/Y = (-5, 25)` と座標系の
@@ -135,13 +135,15 @@ beta            = q_lower + pi
 `check_mapping.py` の [3] は、この 50mm 版と実機 60mm のサーボ角の差を出す
 (歩行の可動域で最大 4.2 deg、復帰の可動域で最大 51.7 deg)。
 
-シミュレーションでの成績 (`~/pupper_rl` の評価スクリプト、ホーン 60mm で評価):
+シミュレーションでの成績 (`~/pupper_rl` の評価スクリプト、ホーン 60mm、脚と胴体の自己衝突ありで評価):
 
 | | 値 |
 |---|---|
-| 転倒復帰 (`recover_test --env unified`, 256本) | 87.9% (仰向け 88.8 / 横倒し 85.0 / 正立 87.2) |
-| 段差踏破 (`step_test --env unified --gait-freq 1.2 1.2`) | 20mm 100 / 30mm 91.7 / 40mm 79.2 / 50mm 8.3 % |
-| 4節リンク実現不能 / PWM 飽和 / トルク飽和 | 1.30% / 0.00% / 3.4% |
+| 転倒復帰 (`recover_test --env unified`, 256本, 8 秒) | 59.8% (仰向け 57.6 / 横倒し 62.5 / 正立 65.9) |
+| 横倒しからの復帰 (左下 / 右下) | 成功 28.2 / 57.6 %、成功までの時間の中央値 3.9 / 1.9 秒 |
+| 段差踏破 (`step_test --env unified --gait-freq 1.2 1.2`) | 10mm 95.8 / 20mm 79.2 / 30mm 33.3 / 40mm 4.2 % |
+| 速度の追従率 (前進 0.2 / 後退 0.2 / 横 左 0.1 / 横 右 0.1 m/s) | 79 / 76 / 99 / 72 % |
+| 4節リンク実現不能 / PWM 飽和 / トルク飽和 | 3.05% / 0.00% / 8.6% |
 
 ## ファイル
 
