@@ -59,8 +59,9 @@ if ($DryRun) {
 $listFile = New-TemporaryFile
 try {
     [IO.File]::WriteAllText($listFile, ($changed -join "`n") + "`n", [Text.UTF8Encoding]::new($false))
-    # cmd's pipe keeps the tar stream binary-safe
-    cmd /c "tar --format=ustar -cf - -T `"$listFile`" | ssh $RobotHost `"tar -xmf - -C $RemoteDir && chmod +x $RemoteDir/*.sh $RemoteDir/src/test/*.sh`""
+    # cmd's pipe keeps the tar stream binary-safe.
+    # sync flushes to the SD card: cutting robot power within ~30 s otherwise leaves 0-byte files.
+    cmd /c "tar --format=ustar -cf - -T `"$listFile`" | ssh $RobotHost `"tar -xmf - -C $RemoteDir && chmod +x $RemoteDir/*.sh $RemoteDir/src/test/*.sh && sync`""
     if ($LASTEXITCODE -ne 0) { throw "transfer to $RobotHost failed" }
 } finally {
     Remove-Item $listFile

@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from enum import IntEnum, auto
 import time
@@ -154,6 +155,9 @@ class run_robot_caliblate_mode():
             print("NEUTRAL_ANGLE_DEGREES = np.array(", file = f)
             print(formatted_str, file = f)
             print(")", file = f)
+            # Flush to the SD card: cutting power right after calibration otherwise leaves a 0-byte file
+            f.flush()
+            os.fsync(f.fileno())
 
 
     def caliblate_leg(self, leg):
