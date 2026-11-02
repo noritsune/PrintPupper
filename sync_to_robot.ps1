@@ -3,15 +3,35 @@
 #   .\sync_to_robot.ps1            sync
 #   .\sync_to_robot.ps1 -DryRun    list changed files only
 #   .\sync_to_robot.ps1 -PullPolicy  copy the RL policy from $PolicySource into src/rl first
+#   .\sync_to_robot.ps1 -NoRestart   do not restart robot.service after sending
+#   .\sync_to_robot.ps1 -RobotHost pi@192.168.0.59   use this host without asking
+# After files are sent, robot.service is restarted so the new code is loaded.
+# The robot host is asked on the first run and saved to .robot_host (not committed).
+# Later runs show the saved host and ask whether to keep it (Enter) or type a new one.
 param(
-    [string]$RobotHost = "pi@192.168.0.190",
+    [string]$RobotHost = "",
     [string]$RemoteDir = "PrintPupper",
     [switch]$DryRun,
     [switch]$PullPolicy,
+    [switch]$NoRestart,
     [string]$PolicySource = "\\wsl.localhost\Ubuntu\root\pupper_rl\deploy\policy_u_stand.npz"
 )
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
+
+$hostFile = Join-Path $PSScriptRoot ".robot_host"
+if (-not $RobotHost) {
+    $saved = if (Test-Path -LiteralPath $hostFile) { (Get-Content -LiteralPath $hostFile -Raw).Trim() } else { "" }
+    if ($saved) {
+        $answer = (Read-Host "Robot host [$saved] (Enter to keep, or type a new one)").Trim()
+        $RobotHost = if ($answer) { $answer } else { $saved }
+    } else {
+        $RobotHost = (Read-Host "Robot host (e.g. pi@192.168.0.59)").Trim()
+    }
+}
+if ($RobotHost -notmatch '^[\w.-]+@[\w.-]+$') { throw "robot host must look like user@host: '$RobotHost'" }
+[IO.File]::WriteAllText($hostFile, "$RobotHost`n", [Text.UTF8Encoding]::new($false))
+Write-Host "Robot host: $RobotHost"
 
 if ($PullPolicy) {
     $policyInRepo = "src/rl/policy_u_stand.npz"
@@ -67,3 +87,9 @@ try {
     Remove-Item $listFile
 }
 Write-Host "$($changed.Count) file(s) sent."
+
+if (-not $NoRestart) {
+    ssh $RobotHost "sudo systemctl restart robot && systemctl is-active robot"
+    if ($LASTEXITCODE -ne 0) { throw "restart of robot.service on $RobotHost failed" }
+    Write-Host "robot.service restarted."
+}

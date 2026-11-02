@@ -37,11 +37,17 @@ This portal site explains the assembly procedure with detailed figs.
 `src/ServoCalibration.py` は送らないため、ロボ側で行ったキャリブレーションは保持されます。  
   
 ```powershell
-.\sync_to_robot.ps1                                # sync / 同期
+.\sync_to_robot.ps1                                # sync, then restart robot.service / 同期してから robot.service を再起動
 .\sync_to_robot.ps1 -DryRun                        # list changed files only / 送る予定のファイルを表示するだけ
-.\sync_to_robot.ps1 -RobotHost pi@192.168.0.123    # another robot (default: pi@192.168.0.190) / 別のロボに送る
+.\sync_to_robot.ps1 -NoRestart                     # sync without restarting / 再起動せずに同期だけ
+.\sync_to_robot.ps1 -RobotHost pi@192.168.0.123    # use this robot without asking / 接続先を聞かずにこのロボに送る
 .\sync_to_robot.ps1 -PullPolicy                    # copy the RL policy from WSL ~/pupper_rl/deploy first / WSL の学習済み方策を取り込んでから送る
 ```
+
+・The robot host (`user@host`) is asked on the first run and saved to `.robot_host` (not committed). Later runs show it; press Enter to keep it or type a new one.  
+・When files are sent, `robot.service` is restarted so the new code takes effect. The robot stops for a moment while it restarts.  
+・接続先（`ユーザー@ホスト`）は初回に聞かれ、`.robot_host` に保存されます（コミットされません）。2 回目以降は保存した値が表示され、Enter でそのまま使うか、新しい値を入力して変更します。  
+・ファイルを送ったときは、新しいコードを読み込ませるため `robot.service` を再起動します。再起動の間、ロボは一瞬止まります。
   
 ・Set up ssh key login to the robot beforehand (`ssh pi@<robot IP>` must connect without a password).  
 ・Files deleted on the PC are not deleted on the robot.  
