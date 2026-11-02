@@ -37,19 +37,7 @@ DEFAULT_POSE = np.array([0.0, np.pi / 4, -np.pi / 2] * 4, dtype=np.float32)
 ACTION_SCALE = 0.25
 ACCEL_OBS_SCALE = 0.1
 CTRL_DT = 0.02          # 50 Hz
-OBS_DIM = 38            # 観測履歴なしのときの次元 (obs_dim() を使うこと)
-
-# --- 観測履歴スタック (env/joystick.py の obs_history の写し) ---
-# 1 フレーム = [gyro 3, accel*ACCEL_OBS_SCALE 3, gravity 3, action 12] = 21。
-# ObsBuilder(history_len=L, history_stride=S) で有効になり、観測は
-# 38 + L*21 次元になる。**学習時と同じ L / S を渡すこと。**
-# 値がずれても次元が合ってしまう組み合わせがあるので (例 L=10,S=4 と L=10,S=2)、
-# scripts/export_npz.py が .npz に書き込んだ値を使うのが安全。
-HIST_FRAME_DIM = 21
-
-
-def obs_dim(history_len: int = 0) -> int:
-    return OBS_DIM + int(history_len) * HIST_FRAME_DIM
+OBS_DIM = 38
 
 # 転倒復帰 (env/recover.py) の残差スケール。
 # 歩行の 0.25 では、仰向けの機体から足先が床に届かない (足先の到達は機体
@@ -73,31 +61,6 @@ GATE_UP_HI = 0.90
 # a がこれ以下なら「転んでいる」とみなし、速度コマンドを無視して歩容位相を
 # 止める (学習時の観測と揃えるため。env/unified.py の _get_obs と同じ規則)。
 GATE_OBS_SWITCH = 0.5
-
-# --- 転倒中の左右反転 (env/unified.py の unified.mirror_fallen) ---
-# 倒れ込んで up <= GATE_UP_LO になった最初のステップで重力の y 成分を見て、
-# 左下 (g_y > 0) なら観測と行動を左右反転して方策に渡す。向きは正立側
-# (ゲート > GATE_OBS_SWITCH) に戻るまで固定する。方策から見ると転倒は常に
-# 「右下側」になるので、左下と右下の起き上がりが同じになる。
-# 脚は lf<->rf, lh<->rh を入れ替え、hip (軸 x) だけ符号を反転する。
-MIRROR_PERM = np.array([3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8])
-MIRROR_SIGN = np.array([-1.0, 1.0, 1.0] * 4, np.float32)
-# 観測の先頭 12 次元: gyro (-x, y, -z)、accel と gravity (x, -y, z)、
-# コマンド (vx, -vy, -wz)。
-MIRROR_OBS_SIGN = np.array([-1, 1, -1, 1, -1, 1, 1, -1, 1, 1, -1, -1], np.float32)
-
-
-def mirror_action(a):
-    return np.asarray(a, np.float32)[..., MIRROR_PERM] * MIRROR_SIGN
-
-
-def mirror_obs(obs):
-    """38 次元の観測の鏡像。転倒中だけ使うので歩容位相はそのまま。"""
-    o = np.asarray(obs, np.float32)
-    return np.concatenate([o[..., :12] * MIRROR_OBS_SIGN,
-                           mirror_action(o[..., 12:24]),
-                           mirror_action(o[..., 24:36]),
-                           o[..., 36:38]], axis=-1).astype(np.float32)
 
 
 def upright_gate(gravity) -> float:
@@ -147,9 +110,7 @@ class ObsBuilder:
     """観測ベクトルを組み立てる。実機と sim の両方で同じコードを使う。"""
 
     def __init__(self, gait_freq: float = 1.5, nominal_pose=None,
-                 action_scale: float = ACTION_SCALE, unified: bool = False,
-                 history_len: int = 0, history_stride: int = 4,
-                 mirror_fallen: bool = True):
+                 action_scale: float = ACTION_SCALE, unified: bool = False):
         # nominal_pose: 行動残差の基準になる姿勢。歩行は4脚接地の基準姿勢だが、
         # 対角2脚保持 (env/balance.py) は balance_pose(pair) を渡す。
         # unified=True: 段差歩行 + 転倒復帰を 1 つの方策でやる版
@@ -160,37 +121,16 @@ class ObsBuilder:
         self.gait_freq = gait_freq
         self.action_scale = float(action_scale)
         self.unified = bool(unified)
-        # 観測履歴スタック。学習時の cfg.obs_history と同じ値を渡すこと。
-        self.history_len = int(history_len)
-        self.history_stride = max(1, int(history_stride))
-        self._hist_frames = self.history_len * self.history_stride
-        self._hist_idx = (np.arange(1, self.history_len + 1)
-                          * self.history_stride - 1)
-        self.obs_dim = obs_dim(self.history_len)
-        # unified のとき、転倒中は左右反転する (MIRROR_PERM の注記)。
-        self.mirror_fallen = self.unified and bool(mirror_fallen)
-        if self.mirror_fallen and self.history_len > 0:
-            raise ValueError("mirror_fallen は観測履歴と併用できない")
         self.reset()
 
     def reset(self):
         self.last_act = np.zeros(12, np.float32)
         self.last_last_act = np.zeros(12, np.float32)
         self.phase = 0.0
-        # 履歴のリングバッファ。hist[0] が 1 ステップ前。**電源投入直後は
-        # 1 回目の読み値でバッファ全体を埋める** (学習側 env/joystick.py の
-        # _obs_reset と同じ)。ゼロ埋めのまま始めると、重力 z の std が 0.0188
-        # しかないせいで正規化後に +52.7σ の入力になり、学習時に見たことの
-        # ない領域を最初の 0.8 秒だけ通ることになる。
-        self._hist = None          # 1 回目の step() で「いまの読み値」で埋める
-        self._last_sensors = np.zeros(9, np.float32)
         # unified: 直近の step() が見た姿勢から決めた値。commit() が使う。
         self._scale = self.action_scale if not getattr(self, "unified", False) \
             else RECOVER_ACTION_SCALE
         self._upright = not getattr(self, "unified", False)
-        # 反転の向き: 0 未決定 / 1 反転する (左下) / -1 反転しない (右下)
-        self._side = 0
-        self.mirrored = False
 
     def step(self, gyro, accel, gravity, command):
         """1制御ステップぶんの観測を返す。
@@ -210,48 +150,16 @@ class ObsBuilder:
             if not self._upright:
                 command = np.zeros(3, np.float32)
                 self.phase = 0.0
-            if self.mirror_fallen:
-                if self._upright:
-                    self._side = 0
-                elif self._side == 0 and -g[2] <= GATE_UP_LO:
-                    self._side = 1 if g[1] > 0 else -1
-                self.mirrored = self._side == 1
         ph = 2 * np.pi * self.phase
-        self._last_sensors = np.concatenate([
-            np.asarray(gyro, np.float32),
-            np.asarray(accel, np.float32) * ACCEL_OBS_SCALE,
-            g,
-        ]).astype(np.float32)
-        if self.history_len > 0 and self._hist is None:
-            # 電源投入直後。「この姿勢で 0.8 秒静止していた」という履歴にする。
-            frame = np.concatenate([self._last_sensors, self.last_act])
-            self._hist = np.tile(frame, (self._hist_frames, 1)).astype(np.float32)
-        obs = [
-            self._last_sensors,                                  # 9
+        return np.concatenate([
+            np.asarray(gyro, np.float32),                        # 3
+            np.asarray(accel, np.float32) * ACCEL_OBS_SCALE,     # 3
+            g,                                                   # 3
             np.asarray(command, np.float32),                     # 3
             self.last_act,                                       # 12
             self.last_last_act,                                  # 12
             np.array([np.cos(ph), np.sin(ph)], np.float32),      # 2
-        ]
-        if self.history_len > 0:
-            obs.append(self._hist[self._hist_idx].ravel())
-        obs = np.concatenate(obs).astype(np.float32)
-        # 履歴は観測を作った **後** に詰める (obs が自分自身のフレームを
-        # 見ないようにする)。詰める行動は「いま読んだセンサ値と対になる行動」=
-        # **self.last_act (1 つ前に出した指令)**。いまから出す行動ではない:
-        # 学習側 (env/joystick.py の step) はフレームを
-        #   (a_t を適用した後のセンサ, a_t)
-        # の組で詰めており、実機でその a_t にあたるのは last_act だから。
-        # ここを commit(action) 側で詰めると 1 ステップぶん先の行動と組になり、
-        # 履歴だけが学習時と食い違う (観測の先頭 38 次元は一致したままなので
-        # 気付きにくい。scripts/check_deploy.py の obs_history 行で検出できる)。
-        if self.history_len > 0:
-            frame = np.concatenate([self._last_sensors, self.last_act])
-            self._hist = np.roll(self._hist, 1, axis=0)
-            self._hist[0] = frame
-        if self.mirrored:
-            obs = mirror_obs(obs)
-        return obs
+        ]).astype(np.float32)
 
     def commit(self, action):
         """推論結果を記録し、位相を進める。step() の後に必ず呼ぶ。
@@ -261,10 +169,6 @@ class ObsBuilder:
         -> joint = commit(action)  の順で、次の step() が a_t を見る形になる。
         """
         action = np.asarray(action, np.float32)
-        if self.mirrored:
-            # 方策は反転した世界で行動を出しているので、実際の関節に戻す。
-            # 行動履歴も実際の関節の並びで持つ (次の step() で反転し直す)。
-            action = mirror_action(action)
         self.last_last_act = self.last_act
         self.last_act = action
         # unified: 転んでいる間は位相クロックを進めない (学習時と同じ)。

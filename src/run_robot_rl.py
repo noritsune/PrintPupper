@@ -312,7 +312,6 @@ def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd, start
             print(f"t {now-t0:6.1f}s  指令 [{cmd[0]:+.2f} {cmd[1]:+.2f} {cmd[2]:+.2f}]  "
                   f"重力 [{gx:+.2f} {gy:+.2f} {gz:+.2f}]  "
                   f"水平度 {up:+.2f} ゲート {gate:.2f} 可動域 {ob._scale:.2f}rad  "
-                  f"{'左右反転 ' if ob.mirrored else ''}"
                   f"遅れ最大 {worst_late*1000:.1f}ms  加速度棄却 {imu.accel_rejected}")
 
         # --- 次の刻みまで待つ ---------------------------------------------
