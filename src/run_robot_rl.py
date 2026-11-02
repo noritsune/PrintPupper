@@ -66,6 +66,11 @@ GATE_FALLEN = 0.5
 # 復帰をやり直すとき、いまの姿勢から基準姿勢へ戻す秒数
 RETRY_RAMP_SECS = 0.8
 
+# 起き上がりだけに方策を使うとき (until_upright)、ゲートがこれ以上のまま
+# UPRIGHT_HOLD_SECS 秒続いたら「起き上がった」とみなして止める
+GATE_UPRIGHT = 0.95
+UPRIGHT_HOLD_SECS = 1.0
+
 
 def parse_args(argv=None):
     ap = argparse.ArgumentParser()
@@ -182,17 +187,24 @@ class PolicyWalker:
     def idle(self, dt):
         self.imu.update(dt)
 
-    def run(self, config, state, hw, joystick, start_joint_angles=None):
+    def is_fallen(self):
+        return upright_gate(self.imu.gravity) < GATE_FALLEN
+
+    def run(self, config, state, hw, joystick, start_joint_angles=None, until_upright=False):
         """活性化から停止まで方策で歩く。戻り値は run_policy と同じ停止理由。
 
         start_joint_angles: いまサーボに出している PrintPupper の joint_angles。
         渡すとそこから基準姿勢へ移す (ルールベースからの切り替え用)。
+        until_upright: 起き上がったら "recovered" で止める (ルールベース中の転倒復帰用)。
         """
         start = None
         if start_joint_angles is not None:
             start = jm.printpupper_to_rl(start_joint_angles)
+        # 倒れているので、基準姿勢へはやり直しと同じ速さで移して早く起き上がりに入る
+        ramp_secs = RETRY_RAMP_SECS if until_upright else None
         return run_policy(self.args, config, state, hw, joystick, self.imu,
-                          self.pol, self.ob, self.zero_cmd, start)
+                          self.pol, self.ob, self.zero_cmd, start,
+                          until_upright=until_upright, ramp_secs=ramp_secs)
 
     def close(self):
         self.imu.close()
@@ -217,18 +229,22 @@ def wait_for_activate(args, config, state, hw, joystick, imu):
         time.sleep(WAIT_DT)
 
 
-def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd, start=None):
+def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd, start=None,
+               until_upright=False, ramp_secs=None):
     """活性化してから停止するまでの 50 Hz ループ。
 
     start: 活性化時に基準姿勢へ移す起点 (pupper_rl の 12 関節角)。None なら RAMP_START。
+    until_upright: 正立が UPRIGHT_HOLD_SECS 秒続いたら止める (起き上がりだけに使う)。
+    ramp_secs: 活性化時に基準姿勢へ移す秒数。None なら args.ramp。
     戻り値は停止理由: "deactivate" (L1) / "rule_mode" (11ボタン) / "fallen" / "secs"
+    / "recovered" (until_upright で起き上がった)
     """
     ob.reset()
     joint_rad = DEFAULT_POSE
     reason = None
     if hw is not None:
         hw.set_led_green(True)
-        ramp_to_nominal(hw, args.ramp, start, imu)
+        ramp_to_nominal(hw, args.ramp if ramp_secs is None else ramp_secs, start, imu)
     if joystick is not None:
         joystick.set_color(config.ps4_activated_color)
     print("方策 開始")
@@ -236,6 +252,7 @@ def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd, start
     t0 = time.perf_counter()
     next_tick = t0
     fallen_since = None
+    upright_since = None
     retries = 0
     worst_late = 0.0
     last_print = t0
@@ -294,6 +311,16 @@ def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd, start
                 continue
         else:
             fallen_since = None
+
+        if until_upright:
+            if gate >= GATE_UPRIGHT:
+                upright_since = upright_since or now
+                if now - upright_since > UPRIGHT_HOLD_SECS:
+                    print(f"起き上がった (ゲート {gate:.2f})")
+                    reason = "recovered"
+                    break
+            else:
+                upright_since = None
 
         # --- 出力 ---------------------------------------------------------
         if hw is not None:

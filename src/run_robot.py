@@ -17,10 +17,13 @@ from rl.joint_map import rl_to_printpupper
 class WalkMode(Enum):
     RULE = 0    # gait generator + IK (Controller), default
     POLICY = 1  # reinforcement learning policy (run_robot_rl.py)
+    RECOVER = 2 # policy used only to get up after a fall in RULE, then back to RULE
 
 WAIT_DT = 0.01
 HANDOVER_RAMP_SECS = 0.8
 HANDOVER_RAMP_DT = 0.02
+# Tilted past the policy's fall threshold for this long in RULE -> get up with the policy
+FALL_DETECT_SECS = 0.3
 
 def main(use_imu=False):
     # Create config
@@ -60,8 +63,12 @@ def main(use_imu=False):
                                                  joystick_interface, policy_walker, pose)
             else:
                 next_mode, pose = run_policy_based(config, state, hardware_interface,
-                                                   joystick_interface, policy_walker, pose)
+                                                   joystick_interface, policy_walker, pose, mode)
             if next_mode is None:
+                if mode == WalkMode.RECOVER:
+                    # Stopped while getting up: the selected walk is still the rule based one
+                    mode = WalkMode.RULE
+                    show_mode(hardware_interface, mode)
                 break
             mode = next_mode
 
@@ -73,8 +80,8 @@ def create_policy_walker():
         return None
 
 def show_mode(hardware_interface, mode):
-    # Blue LED on while the policy walk is selected
-    hardware_interface.set_led_blue(mode == WalkMode.POLICY)
+    # Blue LED on while the policy is driving the servos
+    hardware_interface.set_led_blue(mode != WalkMode.RULE)
 
 def select_mode(command, mode, policy_walker):
     if command.rule_mode_event:
@@ -126,6 +133,7 @@ def run_rule_based(config, controller, state, hardware_interface, joystick_inter
     hardware_interface.set_led_green(True)
     joystick_interface.set_color(config.ps4_activated_color)
     last_pose = start_pose
+    fallen_since = None
     while True:
         d_time = time.time()
 
@@ -154,6 +162,13 @@ def run_rule_based(config, controller, state, hardware_interface, joystick_inter
 
         if policy_walker is not None:
             policy_walker.idle(config.dt)
+            if policy_walker.is_fallen():
+                fallen_since = fallen_since or d_time
+                if d_time - fallen_since > FALL_DETECT_SECS:
+                    print("Robot fell, getting up with the policy")
+                    return WalkMode.RECOVER, last_pose
+            else:
+                fallen_since = None
 
         # cycle tune
         t_time = time.time()
@@ -163,13 +178,17 @@ def run_rule_based(config, controller, state, hardware_interface, joystick_inter
         if (dt_dt > 0) and (dt_dt >= config.dt_min_sleep):
             time.sleep(dt_dt)
 
-def run_policy_based(config, state, hardware_interface, joystick_interface, policy_walker, start_pose):
-    """Starts from start_pose (if given). Returns (next mode or None on stop, current joint angles)."""
-    print("Robot Activate (policy walk)")
-    reason = policy_walker.run(config, state, hardware_interface, joystick_interface, start_pose)
+def run_policy_based(config, state, hardware_interface, joystick_interface, policy_walker, start_pose, mode):
+    """Starts from start_pose (if given). Returns (next mode or None on stop, current joint angles).
+
+    In RECOVER mode the policy only gets the robot up and then hands back to the rule based walk.
+    """
+    print("Robot Activate (policy walk)" if mode == WalkMode.POLICY else "Robot Activate (policy get up)")
+    reason = policy_walker.run(config, state, hardware_interface, joystick_interface, start_pose,
+                               until_upright=(mode == WalkMode.RECOVER))
     # run_policy always ends at the policy's nominal pose
     pose = rl_to_printpupper(DEFAULT_POSE)
-    if reason == "rule_mode":
+    if reason in ("rule_mode", "recovered"):
         return WalkMode.RULE, pose
     return None, pose
 
