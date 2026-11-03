@@ -50,6 +50,8 @@ def main(use_imu=False):
     pose = None
     # Rule based state to resume once the robot has got up after a fall (None: start at REST)
     resume_state = None
+    # False after giving up on getting up: no auto get-up until someone stands the robot up
+    fall_armed = True
 
     # Wait until the activate button has been pressed
     joystick_interface.set_color(config.ps4_deactivated_color)
@@ -62,13 +64,16 @@ def main(use_imu=False):
             if mode == WalkMode.RULE:
                 state = State()
                 next_mode, pose = run_rule_based(config, controller, state, hardware_interface,
-                                                 joystick_interface, policy_walker, pose, resume_state)
+                                                 joystick_interface, policy_walker, pose, resume_state,
+                                                 fall_armed)
                 resume_state = state_to_resume(state) if next_mode == WalkMode.RECOVER else None
+                fall_armed = True
             else:
-                next_mode, pose, recovered = run_policy_based(config, state, hardware_interface,
-                                                              joystick_interface, policy_walker, pose, mode)
-                if not recovered:
+                next_mode, pose, reason = run_policy_based(config, state, hardware_interface,
+                                                           joystick_interface, policy_walker, pose, mode)
+                if reason != "recovered":
                     resume_state = None
+                fall_armed = reason != "gave_up"
             if next_mode is None:
                 if mode == WalkMode.RECOVER:
                     # Stopped while getting up: the selected walk is still the rule based one
@@ -137,10 +142,12 @@ def wait_for_activate(config, state, hardware_interface, joystick_interface, pol
         time.sleep(WAIT_DT)
 
 def run_rule_based(config, controller, state, hardware_interface, joystick_interface, policy_walker, start_pose,
-                   resume_state=None):
+                   resume_state=None, fall_armed=True):
     """Starts from start_pose (if given). Returns (next mode or None on deactivate, current joint angles).
 
     resume_state: RState.TROT starts trotting right after settling at REST (after getting up from a fall).
+    fall_armed: False after giving up on getting up. The robot stays lying still, and a fall
+                starts the policy get-up again only after the robot has been stood up.
     """
     print("Robot Activate (rule based)")
     hardware_interface.set_led_green(True)
@@ -182,7 +189,11 @@ def run_rule_based(config, controller, state, hardware_interface, joystick_inter
 
         if policy_walker is not None:
             policy_walker.idle(config.dt)
-            if policy_walker.is_fallen():
+            if not fall_armed:
+                if policy_walker.is_upright():
+                    print("Robot is upright again, fall get-up re-armed")
+                    fall_armed = True
+            elif policy_walker.is_fallen():
                 fallen_since = fallen_since or d_time
                 if d_time - fallen_since > FALL_DETECT_SECS:
                     print("Robot fell, getting up with the policy")
@@ -200,19 +211,19 @@ def run_rule_based(config, controller, state, hardware_interface, joystick_inter
 
 def run_policy_based(config, state, hardware_interface, joystick_interface, policy_walker, start_pose, mode):
     """Starts from start_pose (if given).
-    Returns (next mode or None on stop, current joint angles, whether the robot got up in RECOVER mode).
+    Returns (next mode or None on stop, current joint angles, run_policy's stop reason).
 
-    In RECOVER mode the policy only gets the robot up and then hands back to the rule based walk.
+    In RECOVER mode the policy only gets the robot up and then hands back to the rule based walk,
+    also when it gives up getting up.
     """
     print("Robot Activate (policy walk)" if mode == WalkMode.POLICY else "Robot Activate (policy get up)")
     reason = policy_walker.run(config, state, hardware_interface, joystick_interface, start_pose,
                                until_upright=(mode == WalkMode.RECOVER))
     # run_policy always ends at the policy's nominal pose
     pose = rl_to_printpupper(DEFAULT_POSE)
-    recovered = (reason == "recovered")
-    if reason == "rule_mode" or recovered:
-        return WalkMode.RULE, pose, recovered
-    return None, pose, recovered
+    if reason in ("rule_mode", "recovered", "gave_up"):
+        return WalkMode.RULE, pose, reason
+    return None, pose, reason
 
 def ramp_joint_angles(hardware_interface, start, goal):
     # Move smoothly from the other mode's pose instead of jumping all 12 servos at once

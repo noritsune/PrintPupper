@@ -27,8 +27,11 @@
   - 既定では**転倒復帰をしない**。傾きゲートが下がったまま --fall-timeout 秒
     続いたらサーボを切って待機に戻る。復帰まで試すなら --recover を付ける。
     (復帰は可動域を 1.6 rad まで開くので、最初の通電では外すこと)
-  - --recover では起き上がれるまで繰り返す。転んだまま --retry-secs 秒たったら
+  - --recover では起き上がれるまで繰り返す。転んだまま --retry-secs 秒たつか、
+    転んだまま固まった (胴体も関節目標もほぼ動かない) 状態が --stuck-secs 秒続いたら
     基準姿勢へ戻し、行動履歴を消してからもう一度試す。
+    倒れてから --give-up-secs 秒たっても起き上がれなければ、諦めて基準姿勢で静止し、
+    人が起こして正立したら方策を再開する。
     run_robot.py から使う PolicyWalker は常に --recover で動く。
 """
 import argparse
@@ -66,6 +69,12 @@ GATE_FALLEN = 0.5
 # 復帰をやり直すとき、いまの姿勢から基準姿勢へ戻す秒数
 RETRY_RAMP_SECS = 0.8
 
+# 転倒中は指令と位相が 0 に固定されるので、機体が止まると方策の入力が一定になり、
+# 同じ行動を出し続けて二度と動かなくなる (固定点)。ジャイロのノルムと関節目標の
+# 1 ステップの変化がともにこれ未満なら「固まっている」とみなす
+STUCK_GYRO = 0.3            # rad/s
+STUCK_JOINT_STEP = 0.02     # rad / step。固定点でも IMU ノイズで関節目標が 0.01 rad 前後揺れる
+
 # 起き上がりだけに方策を使うとき (until_upright)、ゲートがこれ以上のまま
 # UPRIGHT_HOLD_SECS 秒続いたら「起き上がった」とみなして止める
 GATE_UPRIGHT = 0.95
@@ -86,6 +95,10 @@ def parse_args(argv=None):
                     help="転んだまま何秒でサーボを切るか (--recover 時は無効)")
     ap.add_argument("--retry-secs", type=float, default=4.0,
                     help="--recover 時、転んだまま何秒で基準姿勢に戻してやり直すか")
+    ap.add_argument("--stuck-secs", type=float, default=1.0,
+                    help="--recover 時、転んだまま固まって何秒でやり直すか (0 で無効)")
+    ap.add_argument("--give-up-secs", type=float, default=15.0,
+                    help="--recover 時、倒れてから何秒やり直しても起き上がれなければ諦めるか (0 で無制限)")
     ap.add_argument("--ramp", type=float, default=1.5,
                     help="活性化時に基準姿勢へ移す秒数")
     ap.add_argument("--secs", type=float, default=0.0,
@@ -190,6 +203,9 @@ class PolicyWalker:
     def is_fallen(self):
         return upright_gate(self.imu.gravity) < GATE_FALLEN
 
+    def is_upright(self):
+        return upright_gate(self.imu.gravity) >= GATE_UPRIGHT
+
     def run(self, config, state, hw, joystick, start_joint_angles=None, until_upright=False):
         """活性化から停止まで方策で歩く。戻り値は run_policy と同じ停止理由。
 
@@ -235,9 +251,11 @@ def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd, start
 
     start: 活性化時に基準姿勢へ移す起点 (pupper_rl の 12 関節角)。None なら RAMP_START。
     until_upright: 正立が UPRIGHT_HOLD_SECS 秒続いたら止める (起き上がりだけに使う)。
+        --give-up-secs で諦めたときも "gave_up" で止める。until_upright でなければ止めずに
+        基準姿勢で静止し、起こされて正立したら方策を再開する。
     ramp_secs: 活性化時に基準姿勢へ移す秒数。None なら args.ramp。
     戻り値は停止理由: "deactivate" (L1) / "rule_mode" (11ボタン) / "fallen" / "secs"
-    / "recovered" (until_upright で起き上がった)
+    / "recovered" (until_upright で起き上がった) / "gave_up" (until_upright で諦めた)
     """
     ob.reset()
     joint_rad = DEFAULT_POSE
@@ -252,7 +270,10 @@ def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd, start
     t0 = time.perf_counter()
     next_tick = t0
     fallen_since = None
+    down_since = None       # やり直しをまたいで、倒れてからの時間を数える
+    stuck_since = None
     upright_since = None
+    holding = False         # 諦めたあと、起こされるまで基準姿勢で静止している
     retries = 0
     worst_late = 0.0
     last_print = t0
@@ -281,36 +302,72 @@ def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd, start
         else:
             cmd = fixed_cmd
 
-        # --- 推論。順序は step -> 推論 -> commit を崩さないこと ------------
-        obs = ob.step(imu.gyro, imu.accel, imu.gravity, cmd)
-        action = pol(obs)
-        joint_rad = ob.commit(action)
-
-        # --- 転倒の扱い ---------------------------------------------------
         gate = upright_gate(imu.gravity)
         now = time.perf_counter()
-        if gate < GATE_FALLEN:
+
+        # --- 推論。順序は step -> 推論 -> commit を崩さないこと ------------
+        prev_joint_rad = joint_rad
+        if holding:
+            if gate >= GATE_UPRIGHT:
+                print(f"起こされた (ゲート {gate:.2f})。方策を再開する")
+                holding = False
+                ob.reset()
+        else:
+            obs = ob.step(imu.gyro, imu.accel, imu.gravity, cmd)
+            action = pol(obs)
+            joint_rad = ob.commit(action)
+
+        # --- 転倒の扱い ---------------------------------------------------
+        if holding:
+            pass
+        elif gate < GATE_FALLEN:
             fallen_since = fallen_since or now
             fallen_secs = now - fallen_since
+            down_since = down_since or now
+            if is_stuck(imu.gyro, prev_joint_rad, joint_rad):
+                stuck_since = stuck_since or now
+            else:
+                stuck_since = None
             if not args.recover and fallen_secs > args.fall_timeout:
                 print(f"転倒を検出 (ゲート {gate:.2f})。--recover が無いので停止")
                 reason = "fallen"
                 break
+            if args.recover and args.give_up_secs > 0 and now - down_since > args.give_up_secs:
+                print(f"{args.give_up_secs:.0f} 秒やり直しても起き上がれない (ゲート {gate:.2f})。"
+                      f"諦めて静止する")
+                if until_upright:
+                    reason = "gave_up"
+                    break
+                if hw is not None:
+                    ramp_to_nominal(hw, RETRY_RAMP_SECS, joint_rad, imu)
+                joint_rad = DEFAULT_POSE
+                holding = True
+                fallen_since = down_since = stuck_since = None
+                next_tick = time.perf_counter()
+                continue
+            why = None
             if args.recover and fallen_secs > args.retry_secs:
-                # 方策が途中の姿勢で固まることがあるので、L1 で入れ直したときと
-                # 同じく基準姿勢と空の行動履歴から試し直す
+                why = f"{args.retry_secs:.1f} 秒起き上がれない"
+            elif (args.recover and args.stuck_secs > 0 and stuck_since is not None
+                  and now - stuck_since > args.stuck_secs):
+                why = f"{args.stuck_secs:.1f} 秒固まったまま"
+            if why is not None:
+                # 固定点から抜けるため、L1 で入れ直したときと同じく
+                # 基準姿勢と空の行動履歴から試し直す
                 retries += 1
-                print(f"{args.retry_secs:.1f} 秒起き上がれない (ゲート {gate:.2f})。"
-                      f"基準姿勢に戻してやり直す ({retries} 回目)")
+                print(f"{why} (ゲート {gate:.2f})。基準姿勢に戻してやり直す ({retries} 回目)")
                 if hw is not None:
                     ramp_to_nominal(hw, RETRY_RAMP_SECS, joint_rad, imu)
                 ob.reset()
                 joint_rad = DEFAULT_POSE
                 fallen_since = None
+                stuck_since = None
                 next_tick = time.perf_counter()
                 continue
         else:
             fallen_since = None
+            down_since = None
+            stuck_since = None
 
         if until_upright:
             if gate >= GATE_UPRIGHT:
@@ -340,6 +397,8 @@ def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd, start
                   f"重力 [{gx:+.2f} {gy:+.2f} {gz:+.2f}]  "
                   f"水平度 {up:+.2f} ゲート {gate:.2f} 可動域 {ob._scale:.2f}rad  "
                   f"{'左右反転 ' if ob.mirrored else ''}"
+                  f"|ω| {np.linalg.norm(imu.gyro):.2f} "
+                  f"関節変化 {np.max(np.abs(joint_rad - prev_joint_rad)):.3f}  "
                   f"遅れ最大 {worst_late*1000:.1f}ms  加速度棄却 {imu.accel_rejected}")
 
         # --- 次の刻みまで待つ ---------------------------------------------
@@ -364,6 +423,12 @@ def run_policy(args, config, state, hw, joystick, imu, pol, ob, fixed_cmd, start
     if joystick is not None:
         joystick.set_color(config.ps4_deactivated_color)
     return reason
+
+
+def is_stuck(gyro, prev_joint_rad, joint_rad):
+    """胴体が回っておらず、関節目標もほぼ変わっていないか。"""
+    return (float(np.linalg.norm(gyro)) < STUCK_GYRO
+            and float(np.max(np.abs(joint_rad - prev_joint_rad))) < STUCK_JOINT_STEP)
 
 
 # 中立 = abduction 0 / hip 0 / knee(beta) pi は脚が伸びきった姿勢なので、
